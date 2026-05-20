@@ -1,0 +1,9 @@
+asset_classes:
+  equities: []
+  commodities: []
+  bonds: []
+  currencies: []
+  crypto: []
+  cash_usd_proxy: []
+
+benchmark_ticker: null

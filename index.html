@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Market Regime Flow Research Engine</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">MR</div>
+          <div>
+            <h1>Regime Flow</h1>
+            <p>Dashboard / Research Engine</p>
+          </div>
+        </div>
+
+        <section class="control-group">
+          <label for="asOfDate">As of</label>
+          <input id="asOfDate" type="date" />
+        </section>
+
+        <section class="control-group">
+          <label for="riskProfile">Risk profile</label>
+          <select id="riskProfile">
+            <option value="balanced">Balanced</option>
+            <option value="riskOn">Risk-on</option>
+            <option value="defensive">Defensive</option>
+          </select>
+        </section>
+
+        <section class="control-group">
+          <label for="searchBox">Search symbol / theme</label>
+          <input id="searchBox" type="search" placeholder="เช่น TSMC, AI, Japan" />
+        </section>
+
+        <section class="control-group">
+          <label for="csvFile">Import CSV</label>
+          <input id="csvFile" type="file" accept=".csv" />
+          <p class="hint">ใช้ columns: symbol,name,type,country,sector,industry,theme,assetClass,momentum,relativeStrength,flow,liquidity,spreadBps,trackingError,correlations</p>
+        </section>
+
+        <div class="legend">
+          <span><i class="dot strong"></i> Strong</span>
+          <span><i class="dot neutral"></i> Neutral</span>
+          <span><i class="dot weak"></i> Weak</span>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Cross-Asset Flow Monitor</p>
+            <h2>ตลาดกำลังซื้ออะไร และควรคัดหุ้น/DR ตัวไหน</h2>
+          </div>
+          <div class="snapshot">
+            <span id="regimeLabel">Calculating</span>
+            <strong id="marketPulse">--</strong>
+          </div>
+        </header>
+
+        <section class="answer-grid" aria-label="Research answers">
+          <article class="answer-card">
+            <span>1</span>
+            <h3>เงินไหลไป asset class ไหน?</h3>
+            <p id="answerAssetClass">--</p>
+          </article>
+          <article class="answer-card">
+            <span>2</span>
+            <h3>หุ้นประเทศไหนตลาดภายในแข็ง?</h3>
+            <p id="answerCountry">--</p>
+          </article>
+          <article class="answer-card">
+            <span>3</span>
+            <h3>Sector / Industry ไหนแข็ง?</h3>
+            <p id="answerSector">--</p>
+          </article>
+          <article class="answer-card">
+            <span>4</span>
+            <h3>Theme หรือ correlation cluster ไหนถูกซื้อ?</h3>
+            <p id="answerTheme">--</p>
+          </article>
+          <article class="answer-card wide">
+            <span>5</span>
+            <h3>หุ้น/DR ตัวไหน momentum ดี แต่ไม่ซ้ำกันเกินไป?</h3>
+            <p id="answerIdeas">--</p>
+          </article>
+          <article class="answer-card">
+            <span>6</span>
+            <h3>DR ตัวไหน liquidity/spread/tracking ดีสุด?</h3>
+            <p id="answerDr">--</p>
+          </article>
+        </section>
+
+        <section class="workspace">
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Asset Class Flow</h3>
+              <button id="resetData" type="button">Reset sample</button>
+            </div>
+            <div id="assetBars" class="bars"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Country Breadth</h3>
+              <span id="countryCount">-- markets</span>
+            </div>
+            <div id="countryList" class="rank-list"></div>
+          </div>
+
+          <div class="panel tall">
+            <div class="panel-head">
+              <h3>Theme Clusters</h3>
+              <span>flow + momentum + correlation</span>
+            </div>
+            <div id="themeClusters" class="cluster-grid"></div>
+          </div>
+
+          <div class="panel tall">
+            <div class="panel-head">
+              <h3>Diversified Ideas</h3>
+              <span id="ideaCount">-- names</span>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th>Market</th>
+                  <th>Theme</th>
+                  <th>Score</th>
+                  <th>DR quality</th>
+                </tr>
+              </thead>
+              <tbody id="ideaTable"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="sample-data.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

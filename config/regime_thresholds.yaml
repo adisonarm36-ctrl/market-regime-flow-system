@@ -1,0 +1,11 @@
+country_regime:
+  strong_bull: 75
+  bull: 60
+  neutral: 45
+  bear_warning: 30
+
+thailand_regime:
+  strong_bull: 75
+  bull: 60
+  neutral: 45
+  bear_warning: 30

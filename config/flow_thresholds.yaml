@@ -1,0 +1,5 @@
+flow_classification:
+  strong_inflow: 75
+  moderate_inflow: 60
+  moderate_outflow: 40
+  strong_outflow: 25
