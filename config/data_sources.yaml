@@ -1,0 +1,34 @@
+active_source: csv
+source_settings:
+  csv:
+    price_path:
+    metadata_path:
+    sector_map_path:
+    dr_mapping_path:
+  yahoo:
+    tickers:
+      - SPY
+      - QQQ
+      - IWM
+      - TLT
+      - IEF
+      - SHY
+      - GLD
+      - SLV
+      - USO
+      - UUP
+      - BTC-USD
+      - ETH-USD
+    period: 2y
+    interval: 1d
+    auto_adjust: true
+    cache_dir: data/cache/yahoo
+    cache_format: parquet
+    cache_ttl_hours: 8
+    fallback_to_cache: true
+    reference_data:
+      metadata_path: data/reference/metadata.csv
+      sector_map_path: data/reference/sector_map.csv
+      country_map_path: data/reference/country_map.csv
+      asset_map_path: config/asset_map.yaml
+      dr_mapping_path: config/dr_mapping.yaml

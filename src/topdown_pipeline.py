@@ -14,6 +14,11 @@ from .returns import simple_returns
 from .sector_breadth import aggregate_breadth_by_sector
 from .stock_selection import build_research_candidates
 from .thailand_breadth import calculate_thai_market_breadth
+from .config_loader import load_yaml
+from .data_adapters import get_data_adapter
+from .data_quality import summarize_layer_availability, summarize_reference_data_quality, summarize_ticker_metadata_coverage
+from .data_loader import pivot_prices, pivot_volume
+from .reference_data import load_asset_map, load_country_map, load_dr_mapping, load_metadata, load_sector_map, merge_reference_data
 
 
 def run_topdown_pipeline(
@@ -30,6 +35,11 @@ def run_topdown_pipeline(
 ) -> dict[str, pd.DataFrame]:
     """Run report-ready top-down research outputs from supplied CSV-derived data."""
     outputs: dict[str, pd.DataFrame] = {}
+    metadata_df = _normalize_metadata(metadata_df)
+    if country_map_df is None and metadata_df is not None and {"Ticker", "Country"}.issubset(metadata_df.columns):
+        country_map_df = metadata_df[["Ticker", "Country"]].dropna().drop_duplicates()
+    if thailand_metadata_df is None and metadata_df is not None and "Country" in metadata_df.columns:
+        thailand_metadata_df = metadata_df[metadata_df["Country"].eq("Thailand")].copy()
 
     flow = build_flow_table(price_df, volume_df=volume_df, benchmark_ticker=benchmark_ticker)
     outputs["global_flow_summary"] = flow
@@ -79,7 +89,16 @@ def run_topdown_pipeline(
         )
         outputs["dr_quality_ranking"] = rank_dr_candidates(dr_quality)
     else:
-        outputs["dr_quality_ranking"] = pd.DataFrame()
+        missing = []
+        if dr_mapping_df is None:
+            missing.append("dr_mapping")
+        if dr_price_df is None:
+            missing.append("dr_prices")
+        if dr_volume_df is None:
+            missing.append("dr_volume")
+        outputs["dr_quality_ranking"] = pd.DataFrame(
+            [{"data_quality_warning": f"DR quality skipped: missing optional data ({', '.join(missing)})"}]
+        )
 
     if metadata_df is not None and not metadata_df.empty:
         cluster_for_selection = outputs["cluster_membership"].merge(outputs["cluster_summary"], on="cluster", how="left") if not outputs["cluster_membership"].empty else None
@@ -96,3 +115,83 @@ def run_topdown_pipeline(
         outputs["stock_ranking"] = pd.DataFrame()
 
     return outputs
+
+
+def run_pipeline_from_config(config_path: str = "config/data_sources.yaml", adapter=None) -> dict[str, pd.DataFrame]:
+    """Run the top-down pipeline from configured data source and local reference data."""
+    config = load_yaml(config_path)
+    adapter = adapter or get_data_adapter(config)
+    warnings: list[str] = []
+    prices_long = adapter.load_prices()
+    warnings.extend(getattr(adapter, "warnings", []))
+    price_df = pivot_prices(prices_long)
+    volume_df = pivot_volume(prices_long)
+
+    metadata = _load_reference_from_adapter_or_config(adapter, config, "metadata_path", load_metadata, warnings)
+    sector_map = _load_reference_from_adapter_or_config(adapter, config, "sector_map_path", load_sector_map, warnings)
+    country_map = _load_reference_from_adapter_or_config(adapter, config, "country_map_path", load_country_map, warnings)
+    asset_map = _load_reference_from_adapter_or_config(adapter, config, "asset_map_path", load_asset_map, warnings)
+    dr_mapping = _load_reference_from_adapter_or_config(adapter, config, "dr_mapping_path", load_dr_mapping, warnings)
+
+    if metadata is not None and not metadata.empty:
+        metadata, merge_warnings = merge_reference_data(price_df, metadata, sector_map, country_map)
+        warnings.extend(merge_warnings)
+    else:
+        warnings.append("metadata missing; country, Thailand, sector, and stock ranking layers may be skipped")
+
+    dr_price_df = dr_volume_df = None
+    if dr_mapping is not None and not dr_mapping.empty and "DR_Ticker" in dr_mapping.columns:
+        dr_tickers = [ticker for ticker in dr_mapping["DR_Ticker"] if ticker in price_df.columns]
+        if dr_tickers:
+            dr_price_df = price_df[dr_tickers]
+            dr_volume_df = volume_df[dr_tickers]
+        else:
+            warnings.append("DR mapping exists but no DR tickers are present in price data")
+
+    outputs = run_topdown_pipeline(
+        price_df=price_df,
+        volume_df=volume_df,
+        metadata_df=metadata,
+        asset_mapping_df=asset_map,
+        country_map_df=country_map,
+        dr_mapping_df=dr_mapping,
+        dr_price_df=dr_price_df,
+        dr_volume_df=dr_volume_df,
+    )
+    outputs["warnings"] = pd.DataFrame({"warning": warnings})
+    outputs["data_quality_report"] = summarize_reference_data_quality(price_df, metadata, dr_mapping)
+    outputs["reference_data_report"] = summarize_ticker_metadata_coverage(price_df, metadata)
+    outputs["pipeline_layer_status"] = summarize_layer_availability(outputs, warnings)
+    return outputs
+
+
+def _load_reference_from_adapter_or_config(adapter, config: dict, key: str, loader, warnings: list[str]) -> pd.DataFrame | None:
+    active = config.get("active_source", "csv")
+    reference = config.get("source_settings", {}).get(active, {}).get("reference_data", {})
+    path = reference.get(key)
+    if path:
+        try:
+            return loader(path)
+        except Exception as exc:
+            warnings.append(f"{key} skipped: {exc}")
+    try:
+        if key == "metadata_path":
+            return adapter.load_metadata()
+        if key == "sector_map_path":
+            return adapter.load_sector_map()
+        if key == "dr_mapping_path":
+            return adapter.load_dr_mapping()
+    except Exception as exc:
+        warnings.append(f"{key} skipped: {exc}")
+        return None
+    warnings.append(f"{key} missing")
+    return None
+
+
+def _normalize_metadata(metadata_df: pd.DataFrame | None) -> pd.DataFrame | None:
+    if metadata_df is None:
+        return None
+    result = metadata_df.copy()
+    if "Suspended" in result.columns:
+        result["Suspended"] = result["Suspended"].map(lambda value: str(value).lower() == "true" if pd.notna(value) else False)
+    return result

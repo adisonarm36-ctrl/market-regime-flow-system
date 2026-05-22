@@ -11,7 +11,7 @@ def generate_daily_flow_summary(global_flow_summary: pd.DataFrame, limit: int = 
         return "Global flow signal skipped: no flow metrics available."
     top = global_flow_summary.sort_values("flow_score", ascending=False).head(limit)
     items = [f"{row.Ticker}: flow_score={row.flow_score:.2f}, classification={row.flow_classification}" for row in top.itertuples()]
-    return "Global flow proxy leaders: " + "; ".join(items)
+    return "Research signal - global flow proxy leaders: " + "; ".join(items)
 
 
 def generate_country_regime_summary(country_breadth_summary: pd.DataFrame) -> str:
@@ -21,7 +21,7 @@ def generate_country_regime_summary(country_breadth_summary: pd.DataFrame) -> st
     rows = []
     for row in country_breadth_summary.dropna(subset=["breadth_score"], how="any").itertuples():
         rows.append(f"{row.country}: breadth_score={row.breadth_score:.2f}, regime={row.regime}")
-    return "Country regimes: " + "; ".join(rows) if rows else "Country regime skipped: breadth_score missing."
+    return "Research signal - country regimes: " + "; ".join(rows) if rows else "Country regime skipped: breadth_score missing."
 
 
 def generate_thailand_market_summary(thailand_market_health: pd.DataFrame) -> str:
@@ -32,7 +32,7 @@ def generate_thailand_market_summary(thailand_market_health: pd.DataFrame) -> st
     if "missing_data" in row and pd.notna(row["missing_data"]):
         return f"Thailand market health skipped: {row['missing_data']}."
     return (
-        f"Thailand {row.get('universe', 'domestic universe')}: "
+        f"Research signal - Thailand {row.get('universe', 'domestic universe')}: "
         f"breadth_score={float(row['breadth_score']):.2f}, regime={row['regime']}, "
         f"pct_above_50ma={float(row['pct_above_50ma']):.2f}, pct_above_200ma={float(row['pct_above_200ma']):.2f}"
     )
@@ -45,7 +45,7 @@ def generate_sector_summary(sector_breadth_summary: pd.DataFrame, limit: int = 5
     rows = []
     for row in sector_breadth_summary.dropna(subset=["breadth_score"]).head(limit).itertuples():
         rows.append(f"{row.Sector}: breadth_score={row.breadth_score:.2f}, regime={row.regime}")
-    return "Strongest sectors by breadth: " + "; ".join(rows) if rows else "Sector breadth skipped: breadth_score missing."
+    return "Research signal - strongest sectors by breadth: " + "; ".join(rows) if rows else "Sector breadth skipped: breadth_score missing."
 
 
 def generate_cluster_summary(cluster_summary: pd.DataFrame, limit: int = 5) -> str:
@@ -55,7 +55,7 @@ def generate_cluster_summary(cluster_summary: pd.DataFrame, limit: int = 5) -> s
     rows = []
     for row in cluster_summary.head(limit).itertuples():
         rows.append(f"cluster={row.cluster}: cluster_score={row.cluster_score:.2f}, cluster_momentum={row.cluster_momentum:.4f}")
-    return "Top correlation clusters: " + "; ".join(rows)
+    return "Research signal - top correlation clusters: " + "; ".join(rows)
 
 
 def generate_stock_selection_summary(stock_ranking: pd.DataFrame, limit: int = 5) -> str:
@@ -65,17 +65,20 @@ def generate_stock_selection_summary(stock_ranking: pd.DataFrame, limit: int = 5
     rows = []
     for row in stock_ranking.head(limit).itertuples():
         rows.append(f"{row.Ticker}: research_score={row.research_score:.2f}, failed_filters={row.failed_filters or 'none'}")
-    return "Research candidates: " + "; ".join(rows)
+    return "Research signal - candidates: " + "; ".join(rows)
 
 
 def generate_dr_quality_summary(dr_quality_ranking: pd.DataFrame, limit: int = 5) -> str:
     """Generate a metric-backed DR execution quality narrative."""
     if dr_quality_ranking.empty:
         return "DR quality skipped: no DR mapping or execution data available."
+    if "DR_Ticker" not in dr_quality_ranking.columns:
+        warning = dr_quality_ranking.get("data_quality_warning", pd.Series(["missing DR execution data"])).iloc[0]
+        return f"DR quality skipped: {warning}."
     rows = []
     for row in dr_quality_ranking.head(limit).itertuples():
         rows.append(f"{row.DR_Ticker}: underlying={row.Underlying_Ticker}, dr_quality_score={row.dr_quality_score:.2f}, execution_rank={row.execution_rank:.0f}")
-    return "DR execution quality: " + "; ".join(rows)
+    return "Research signal - DR execution quality: " + "; ".join(rows)
 
 
 def build_daily_report(outputs: dict[str, pd.DataFrame]) -> dict[str, str]:

@@ -1,0 +1,7 @@
+Ticker,SecurityType,Country,Sector,Industry,Universe,Suspended,average_traded_value_20d
+DEMO_TH_ALPHA,Stock,Thailand,Technology,Software,SET ex-DR,False,1500000
+DEMO_TH_BETA,Stock,Thailand,Consumer,Retail,SET ex-DR,False,1100000
+DEMO_US_GAMMA,Stock,United States,Technology,Semiconductors,Global,False,2200000
+DEMO_DR_ALPHA,DR,Thailand,Technology,DR Proxy,SET ex-DR,False,900000
+DEMO_ETF_BOND,ETF,Thailand,Fixed Income,Bond ETF,SET ex-DR,False,800000
+DEMO_DW_ALPHA,DW,Thailand,Derivatives,Warrant,SET ex-DR,False,400000

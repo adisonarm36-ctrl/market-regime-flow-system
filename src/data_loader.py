@@ -12,6 +12,11 @@ ADJUSTED_CLOSE_COLUMNS = ["Adjusted Close", "Adj Close"]
 
 def load_ohlcv_csv(path: str | Path, validate: bool = True) -> pd.DataFrame:
     """Load OHLCV market data from CSV with Date parsed as datetime."""
+    if validate:
+        from .data_adapters.csv_adapter import CsvDataAdapter
+
+        return CsvDataAdapter(price_path=path).load_prices()
+
     df = pd.read_csv(path)
     if "Date" in df.columns:
         df["Date"] = pd.to_datetime(df["Date"])

@@ -1,0 +1,7 @@
+Ticker,asset_class,group,subgroup
+DEMO_TH_ALPHA,Equity,Thailand,Technology
+DEMO_TH_BETA,Equity,Thailand,Consumer
+DEMO_US_GAMMA,Equity,United States,Technology
+DEMO_DR_ALPHA,Equity,Thailand DR,Global Proxy
+DEMO_ETF_BOND,Bond,Thailand,ETF
+DEMO_DW_ALPHA,Derivative,Thailand,DW

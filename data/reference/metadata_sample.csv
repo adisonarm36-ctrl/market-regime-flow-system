@@ -1,0 +1,7 @@
+﻿Ticker,SecurityType,Country,Sector,Industry,Universe,Suspended,Name,Currency,Exchange,IsDR,UnderlyingTicker,average_traded_value_20d,Notes
+DEMO_US_EQUITY_ETF,ETF,United States,Equity ETF,Broad Market,Global,False,Fake Demo US Equity ETF,USD,DEMO,False,,1000000,FAKE DEMO reference row only
+DEMO_US_BOND_ETF,ETF,United States,Bond ETF,Treasury,Global,False,Fake Demo Bond ETF,USD,DEMO,False,,900000,FAKE DEMO reference row only
+DEMO_US_COMMODITY_ETF,ETF,United States,Commodity ETF,Gold,Global,False,Fake Demo Commodity ETF,USD,DEMO,False,,850000,FAKE DEMO reference row only
+DEMO_CRYPTO_PROXY,Stock,Global,Crypto Proxy,Digital Assets,Global,False,Fake Demo Crypto Proxy,USD,DEMO,False,,700000,FAKE DEMO reference row only
+DEMO_TH_SAMPLE.BK,Stock,Thailand,Technology,Software,SET ex-DR,False,Fake Demo Thailand Stock,THB,DEMO,False,,600000,FAKE DEMO reference row only
+DEMO_TH_DR,DR,Thailand,Global Proxy,DR,SET ex-DR,False,Fake Demo Thailand DR,THB,DEMO,True,DEMO_US_EQUITY_ETF,500000,FAKE DEMO reference row only

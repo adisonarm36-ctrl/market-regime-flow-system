@@ -1,0 +1,4 @@
+dr_mappings:
+  - DR_Ticker: DEMO_DR_ALPHA
+    Underlying_Ticker: DEMO_US_GAMMA
+    Description: FAKE DEMO DR mapping for sample smoke tests only

@@ -69,6 +69,8 @@ def _merge_dr_quality(result: pd.DataFrame, dr_quality_df: pd.DataFrame | None) 
     result["dr_quality_score"] = pd.NA
     if dr_quality_df is None or dr_quality_df.empty:
         return result
+    if "DR_Ticker" not in dr_quality_df.columns:
+        return result
     dr = dr_quality_df.rename(columns={"DR_Ticker": "Ticker", "data_quality_warning": "dr_data_quality_warning"})
     columns = [column for column in ["Ticker", "dr_quality_score", "data_quality_warning"] if column in dr.columns]
     columns = [column for column in ["Ticker", "dr_quality_score", "dr_data_quality_warning"] if column in dr.columns]
