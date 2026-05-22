@@ -1,0 +1,7 @@
+DR_Ticker,UnderlyingTicker,UnderlyingCurrency,DR_Currency,Ratio,FXPair,FeeAdjustmentPct,RatioConvention,Notes
+DEMO_DR_A,DEMO_US_TECH,USD,THB,10.0,USD/THB,0.001,DR_per_Underlying,Fake Tech DR A ratio 10:1
+DEMO_DR_B,DEMO_US_TECH,USD,THB,5.0,USD/THB,0.0015,DR_per_Underlying,Fake Tech DR B ratio 5:1
+DEMO_DRX_C,DEMO_HK_FIN,HKD,THB,1.0,HKD/THB,0.002,DR_per_Underlying,Fake HK Finance DRx C ratio 1:1
+DEMO_DR_INACTIVE,DEMO_US_TECH,USD,THB,10.0,USD/THB,0.001,DR_per_Underlying,Fake Inactive DR ratio 10:1
+DEMO_DR_MISSING_LIQ,DEMO_US_TECH,USD,THB,10.0,USD/THB,0.001,DR_per_Underlying,Fake Missing Liquidity DR
+DEMO_DR_INVALID_CONV,DEMO_US_TECH,USD,THB,10.0,USD/THB,0.001,Underlying_per_DR,Fake DR with invalid convention for testing

@@ -187,8 +187,29 @@ def main() -> None:
     elif page == "Stock Ranking":
         _show_table("Ranked Research Candidates", outputs.get("stock_ranking"))
     elif page == "DR Global Proxy":
-        _show_table("DR Execution Quality", outputs.get("dr_quality_ranking"))
-        _show_table("Thailand DR / DRx Reference", outputs.get("thailand_dr_mapping_report"))
+        st.warning("⚠️ **RESEARCH SIGNALS ONLY**: The metrics, rankings, and indicators presented below are purely for research and quantitative signal screening. They do NOT constitute financial advice or investment recommendations. DRs and underlying foreign proxies carry FX, tracking, and liquidity risk.")
+        
+        tabs = st.tabs([
+            "Execution Ready Rankings",
+            "Fair Value & Premium/Discount",
+            "Tracking & FX-Adjusted Returns",
+            "Liquidity Details",
+            "Quality Warnings"
+        ])
+        
+        with tabs[0]:
+            _show_table("Execution Ready Rankings", outputs.get("dr_execution_quality_report"))
+        with tabs[1]:
+            _show_table("Fair Value & Premium/Discount", outputs.get("dr_fair_value_report"))
+        with tabs[2]:
+            _show_table("Tracking & FX-Adjusted Returns", outputs.get("dr_tracking_report"))
+        with tabs[3]:
+            _show_table("Liquidity Details", outputs.get("dr_liquidity_report"))
+        with tabs[4]:
+            _show_table("Quality Warnings", outputs.get("dr_quality_warnings"))
+            
+        st.markdown("---")
+        _show_table("Thailand DR / DRx Reference Status", outputs.get("thailand_dr_mapping_report"))
         _show_table("Duplicate DR Underlying Groups", outputs.get("dr_duplicate_underlying_report"))
     elif page == "Redundancy Report":
         _show_table("Redundant Instruments", outputs.get("redundancy_report"))
@@ -213,6 +234,9 @@ def _show_status_tables(outputs: dict[str, pd.DataFrame]) -> None:
     _show_table("Thailand Reference Status", outputs.get("thailand_reference_report"))
     _show_table("Thailand Eligibility Status", outputs.get("thailand_eligibility_report"))
     _show_table("Thailand DR / DRx Status", outputs.get("thailand_dr_mapping_report"))
+    _show_table("DR Execution Data Quality", outputs.get("dr_execution_quality_data_report"))
+    _show_table("DR Fair Value Coverage", outputs.get("dr_fair_value_coverage_report"))
+    _show_table("DR Tracking Coverage", outputs.get("dr_tracking_coverage_report"))
     _show_table("Tickers Missing Metadata", outputs.get("reference_data_report"))
     _show_table("Pipeline Layer Status", outputs.get("pipeline_layer_status"))
     warnings = outputs.get("warnings")

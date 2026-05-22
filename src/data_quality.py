@@ -151,3 +151,154 @@ def _bool_series(series: pd.Series) -> pd.Series:
     if series.dtype == bool:
         return series.fillna(False)
     return series.astype(str).str.lower().isin(["true", "1", "yes", "y"])
+
+
+def summarize_dr_execution_quality_data(
+    dr_market_data: pd.DataFrame | None,
+    dr_bid_ask: pd.DataFrame | None
+) -> pd.DataFrame:
+    """Summarize local DR execution quality market and spread data counts and status."""
+    import numpy as np
+    market_rows = len(dr_market_data) if dr_market_data is not None else 0
+    bid_ask_rows = len(dr_bid_ask) if dr_bid_ask is not None else 0
+    
+    unique_market_tickers = 0
+    if dr_market_data is not None and "DR_Ticker" in dr_market_data.columns:
+        unique_market_tickers = int(dr_market_data["DR_Ticker"].nunique())
+        
+    unique_bid_ask_tickers = 0
+    if dr_bid_ask is not None and "DR_Ticker" in dr_bid_ask.columns:
+        unique_bid_ask_tickers = int(dr_bid_ask["DR_Ticker"].nunique())
+        
+    avg_spread_pct = np.nan
+    if dr_bid_ask is not None and not dr_bid_ask.empty:
+        if "Bid" in dr_bid_ask.columns and "Ask" in dr_bid_ask.columns:
+            bids = dr_bid_ask["Bid"]
+            asks = dr_bid_ask["Ask"]
+            mids = (bids + asks) / 2.0
+            valid = (mids > 0)
+            if valid.any():
+                spreads = ((asks[valid] - bids[valid]) / mids[valid]) * 100.0
+                avg_spread_pct = float(spreads.mean())
+
+    warnings = []
+    if market_rows == 0:
+        warnings.append("missing_dr_market_data")
+    if bid_ask_rows == 0:
+        warnings.append("missing_dr_bid_ask_data")
+        
+    return pd.DataFrame([
+        {
+            "dr_market_rows": market_rows,
+            "dr_bid_ask_rows": bid_ask_rows,
+            "unique_market_tickers": unique_market_tickers,
+            "unique_bid_ask_tickers": unique_bid_ask_tickers,
+            "avg_spread_pct": avg_spread_pct,
+            "warnings": ";".join(warnings)
+        }
+    ])
+
+
+def summarize_dr_fair_value_coverage(
+    fair_value_inputs: pd.DataFrame | None,
+    underlying_prices: pd.DataFrame | None,
+    fx_rates: pd.DataFrame | None
+) -> pd.DataFrame:
+    """Summarize DR fair value data coverage (underlying prices and FX rate alignment)."""
+    fv_rows = len(fair_value_inputs) if fair_value_inputs is not None else 0
+    und_rows = len(underlying_prices) if underlying_prices is not None else 0
+    fx_rows = len(fx_rates) if fx_rates is not None else 0
+    
+    unique_fv_tickers = 0
+    if fair_value_inputs is not None and "DR_Ticker" in fair_value_inputs.columns:
+        unique_fv_tickers = int(fair_value_inputs["DR_Ticker"].nunique())
+        
+    covered_tickers = 0
+    missing_unds = []
+    missing_fxs = []
+    
+    if fair_value_inputs is not None and not fair_value_inputs.empty:
+        und_tickers_avail = set(underlying_prices["UnderlyingTicker"].unique()) if underlying_prices is not None and "UnderlyingTicker" in underlying_prices.columns else set()
+        fx_pairs_avail = set(fx_rates["FXPair"].unique()) if fx_rates is not None and "FXPair" in fx_rates.columns else set()
+        
+        for _, row in fair_value_inputs.iterrows():
+            und_ticker = row.get("UnderlyingTicker")
+            fx_pair = row.get("FXPair")
+            
+            has_und = und_ticker in und_tickers_avail
+            has_fx = fx_pair in fx_pairs_avail
+            
+            if has_und and has_fx:
+                covered_tickers += 1
+            if not has_und and pd.notna(und_ticker):
+                missing_unds.append(str(und_ticker))
+            if not has_fx and pd.notna(fx_pair):
+                missing_fxs.append(str(fx_pair))
+                
+    coverage_pct = (covered_tickers / unique_fv_tickers * 100.0) if unique_fv_tickers > 0 else 0.0
+    
+    warnings = []
+    if fv_rows == 0:
+        warnings.append("missing_fair_value_inputs")
+    if und_rows == 0:
+        warnings.append("missing_underlying_prices")
+    if fx_rows == 0:
+        warnings.append("missing_fx_rates")
+        
+    return pd.DataFrame([
+        {
+            "fair_value_input_rows": fv_rows,
+            "unique_fair_value_tickers": unique_fv_tickers,
+            "underlying_prices_rows": und_rows,
+            "fx_rates_rows": fx_rows,
+            "coverage_pct": coverage_pct,
+            "missing_underlying_tickers": ",".join(sorted(set(missing_unds))),
+            "missing_fx_pairs": ",".join(sorted(set(missing_fxs))),
+            "warnings": ";".join(warnings)
+        }
+    ])
+
+
+def summarize_dr_tracking_coverage(
+    dr_market_data: pd.DataFrame | None,
+    underlying_prices: pd.DataFrame | None,
+    fx_rates: pd.DataFrame | None
+) -> pd.DataFrame:
+    """Summarize overlapping dates and status for historical tracking calculations."""
+    dr_tickers = 0
+    common_dates_count = 0
+    warnings = []
+    
+    if dr_market_data is not None and not dr_market_data.empty and "DR_Ticker" in dr_market_data.columns:
+        dr_tickers = int(dr_market_data["DR_Ticker"].nunique())
+        
+        # Calculate overlap of dates
+        dr_dates = set(pd.to_datetime(dr_market_data["Date"]).dt.date.unique())
+        und_dates = set(pd.to_datetime(underlying_prices["Date"]).dt.date.unique()) if underlying_prices is not None and "Date" in underlying_prices.columns else set()
+        fx_dates = set(pd.to_datetime(fx_rates["Date"]).dt.date.unique()) if fx_rates is not None and "Date" in fx_rates.columns else set()
+        
+        common_dates = dr_dates.intersection(und_dates).intersection(fx_dates)
+        common_dates_count = len(common_dates)
+        
+    if dr_tickers == 0:
+        warnings.append("missing_dr_market_data")
+    if underlying_prices is None or underlying_prices.empty:
+        warnings.append("missing_underlying_prices")
+    if fx_rates is None or fx_rates.empty:
+        warnings.append("missing_fx_rates")
+        
+    status = "Missing"
+    if dr_tickers > 0 and common_dates_count >= 10:
+        status = "Good"
+    elif dr_tickers > 0 and common_dates_count > 0:
+        status = "Partial"
+        
+    return pd.DataFrame([
+        {
+            "dr_market_tickers": dr_tickers,
+            "common_dates_count": common_dates_count,
+            "tracking_coverage_status": status,
+            "warnings": ";".join(warnings)
+        }
+    ])
+
