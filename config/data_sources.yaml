@@ -11,6 +11,11 @@ source_settings:
       thailand_security_types_path: data/reference/thailand/thailand_security_types_sample.csv
       thailand_liquidity_path: data/reference/thailand/thailand_liquidity_sample.csv
       thailand_dr_mapping_path: data/reference/thailand/thailand_dr_mapping_sample.csv
+      dr_market_data_path: data/reference/thailand/dr_quality/dr_market_data_sample.csv
+      dr_bid_ask_path: data/reference/thailand/dr_quality/dr_bid_ask_sample.csv
+      dr_fair_value_inputs_path: data/reference/thailand/dr_quality/dr_fair_value_inputs_sample.csv
+      fx_rates_path: data/reference/thailand/dr_quality/fx_rates_sample.csv
+      underlying_prices_path: data/reference/thailand/dr_quality/underlying_prices_sample.csv
   yahoo:
     tickers:
       - SPY
@@ -43,3 +48,8 @@ source_settings:
       thailand_security_types_path: data/reference/thailand/thailand_security_types_sample.csv
       thailand_liquidity_path: data/reference/thailand/thailand_liquidity_sample.csv
       thailand_dr_mapping_path: data/reference/thailand/thailand_dr_mapping_sample.csv
+      dr_market_data_path: data/reference/thailand/dr_quality/dr_market_data_sample.csv
+      dr_bid_ask_path: data/reference/thailand/dr_quality/dr_bid_ask_sample.csv
+      dr_fair_value_inputs_path: data/reference/thailand/dr_quality/dr_fair_value_inputs_sample.csv
+      fx_rates_path: data/reference/thailand/dr_quality/fx_rates_sample.csv
+      underlying_prices_path: data/reference/thailand/dr_quality/underlying_prices_sample.csv

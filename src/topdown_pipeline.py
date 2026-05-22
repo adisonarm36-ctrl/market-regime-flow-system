@@ -7,7 +7,19 @@ from .clustering import calculate_cluster_breadth, calculate_cluster_momentum, c
 from .correlation import static_correlation_matrix
 from .country_breadth import calculate_country_breadth
 from .dr_mapping import identify_duplicate_dr_underlyings, normalize_dr_mapping
-from .dr_quality import build_dr_quality_table, rank_dr_candidates, rank_dr_candidates_by_reference_quality
+from .dr_quality import (
+    build_dr_quality_table,
+    rank_dr_candidates,
+    rank_dr_candidates_by_reference_quality,
+    rank_dr_candidates_with_execution_quality,
+)
+from .dr_valuation import (
+    load_dr_market_data,
+    load_dr_bid_ask_data,
+    load_dr_fair_value_inputs,
+    load_fx_rates,
+    load_underlying_prices,
+)
 from .global_flow import build_flow_table
 from .momentum import calculate_momentum_table
 from .redundancy import redundancy_report
@@ -24,6 +36,9 @@ from .data_quality import (
     summarize_thailand_dr_mapping_quality,
     summarize_thailand_reference_quality,
     summarize_ticker_metadata_coverage,
+    summarize_dr_execution_quality_data,
+    summarize_dr_fair_value_coverage,
+    summarize_dr_tracking_coverage,
 )
 from .data_loader import pivot_prices, pivot_volume
 from .reference_data import load_asset_map, load_country_map, load_dr_mapping, load_metadata, load_sector_map, merge_reference_data
@@ -50,6 +65,11 @@ def run_topdown_pipeline(
     dr_mapping_df: pd.DataFrame | None = None,
     dr_price_df: pd.DataFrame | None = None,
     dr_volume_df: pd.DataFrame | None = None,
+    dr_market_data_df: pd.DataFrame | None = None,
+    dr_bid_ask_df: pd.DataFrame | None = None,
+    fair_value_inputs_df: pd.DataFrame | None = None,
+    underlying_prices_df: pd.DataFrame | None = None,
+    fx_rates_df: pd.DataFrame | None = None,
     benchmark_ticker: str | None = None,
 ) -> dict[str, pd.DataFrame]:
     """Run report-ready top-down research outputs from supplied CSV-derived data."""
@@ -110,19 +130,73 @@ def run_topdown_pipeline(
 
     outputs["redundancy_report"] = redundancy_report(corr, momentum) if not corr.empty else pd.DataFrame()
 
+    # Setup five default empty reports
+    outputs["dr_execution_quality_report"] = pd.DataFrame(columns=[
+        "DR_Ticker", "UnderlyingTicker", "IsActive", "LiquiditySupported", "SpreadSupported",
+        "FairValueSupported", "TrackingSupported", "confidence_level", "quality_label", "quality_score"
+    ])
+    outputs["dr_fair_value_report"] = pd.DataFrame(columns=[
+        "DR_Ticker", "UnderlyingTicker", "fair_value", "premium_discount_pct"
+    ])
+    outputs["dr_tracking_report"] = pd.DataFrame(columns=[
+        "DR_Ticker", "UnderlyingTicker", "tracking_correlation", "tracking_error"
+    ])
+    outputs["dr_liquidity_report"] = pd.DataFrame(columns=[
+        "DR_Ticker", "UnderlyingTicker", "average_traded_value_20d", "volume_consistency"
+    ])
+    outputs["dr_quality_warnings"] = pd.DataFrame(columns=[
+        "DR_Ticker", "warnings"
+    ])
+
     if dr_mapping_df is not None and not dr_mapping_df.empty:
         dr_mapping_df = normalize_dr_mapping(dr_mapping_df)
-
-    if dr_mapping_df is not None and not dr_mapping_df.empty and dr_price_df is not None and dr_volume_df is not None:
-        dr_quality = build_dr_quality_table(
-            dr_price_df=dr_price_df,
-            dr_volume_df=dr_volume_df,
-            mapping_df=dr_mapping_df,
-            underlying_price_df=price_df,
-        )
-        outputs["dr_quality_ranking"] = rank_dr_candidates(dr_quality)
-    elif dr_mapping_df is not None and not dr_mapping_df.empty:
-        outputs["dr_quality_ranking"] = rank_dr_candidates_by_reference_quality(dr_mapping_df)
+        
+        # If dr_market_data_df is None, but dr_price_df is provided:
+        if dr_market_data_df is None and dr_price_df is not None and not dr_price_df.empty:
+            long_prices = dr_price_df.reset_index().melt(id_vars=["Date"], var_name="DR_Ticker", value_name="Close")
+            if dr_volume_df is not None and not dr_volume_df.empty:
+                long_volumes = dr_volume_df.reset_index().melt(id_vars=["Date"], var_name="DR_Ticker", value_name="Volume")
+                dr_market_data_df = pd.merge(long_prices, long_volumes, on=["Date", "DR_Ticker"], how="left")
+            else:
+                dr_market_data_df = long_prices
+                dr_market_data_df["Volume"] = 0
+            dr_market_data_df["Open"] = dr_market_data_df["Close"]
+            dr_market_data_df["High"] = dr_market_data_df["Close"]
+            dr_market_data_df["Low"] = dr_market_data_df["Close"]
+            dr_market_data_df["ValueTraded"] = dr_market_data_df["Close"] * dr_market_data_df["Volume"]
+            
+        # Check if we have core DR price time series to perform full execution quality ranking.
+        # If we don't have transaction/price data in the current dataset (dr_price_df is None or empty), we fall back to reference-only!
+        if dr_price_df is None or dr_price_df.empty:
+            outputs["dr_quality_ranking"] = rank_dr_candidates_by_reference_quality(dr_mapping_df)
+            outputs["dr_execution_quality_report"] = outputs["dr_quality_ranking"]
+        else:
+            try:
+                quality_res = rank_dr_candidates_with_execution_quality(
+                    dr_mapping_df=dr_mapping_df,
+                    dr_market_data_df=dr_market_data_df,
+                    dr_bid_ask_df=dr_bid_ask_df,
+                    fair_value_inputs_df=fair_value_inputs_df,
+                    underlying_prices_df=underlying_prices_df,
+                    fx_rates_df=fx_rates_df
+                )
+                outputs["dr_execution_quality_report"] = quality_res
+                outputs["dr_quality_ranking"] = quality_res
+                
+                if not quality_res.empty:
+                    fv_cols = [c for c in ["DR_Ticker", "UnderlyingTicker", "fair_value", "premium_discount_pct"] if c in quality_res.columns]
+                    outputs["dr_fair_value_report"] = quality_res[fv_cols].dropna(subset=[c for c in ["fair_value", "premium_discount_pct"] if c in fv_cols], how="all").reset_index(drop=True)
+                    
+                    track_cols = [c for c in ["DR_Ticker", "UnderlyingTicker", "tracking_correlation", "tracking_error"] if c in quality_res.columns]
+                    outputs["dr_tracking_report"] = quality_res[track_cols].dropna(subset=[c for c in ["tracking_correlation", "tracking_error"] if c in track_cols], how="all").reset_index(drop=True)
+                    
+                    liq_cols = [c for c in ["DR_Ticker", "UnderlyingTicker", "average_traded_value_20d", "volume_consistency"] if c in quality_res.columns]
+                    outputs["dr_liquidity_report"] = quality_res[liq_cols].dropna(subset=[c for c in ["average_traded_value_20d", "volume_consistency"] if c in liq_cols], how="all").reset_index(drop=True)
+                    
+                    warn_cols = [c for c in ["DR_Ticker", "warnings"] if c in quality_res.columns]
+                    outputs["dr_quality_warnings"] = quality_res[warn_cols].copy()
+            except Exception as e:
+                outputs["dr_quality_ranking"] = rank_dr_candidates_by_reference_quality(dr_mapping_df)
     else:
         missing = []
         if dr_mapping_df is None:
@@ -172,6 +246,13 @@ def run_pipeline_from_config(config_path: str = "config/data_sources.yaml", adap
     thailand_security_types = _load_reference_from_config(config, "thailand_security_types_path", load_thailand_security_types, warnings)
     thailand_liquidity = _load_reference_from_config(config, "thailand_liquidity_path", load_thailand_liquidity, warnings)
     thailand_dr_mapping = _load_reference_from_config(config, "thailand_dr_mapping_path", load_thailand_dr_mapping, warnings)
+
+    # Phase 5A: Load enhanced DR execution quality dataframes
+    dr_market_data = _load_reference_from_config(config, "dr_market_data_path", load_dr_market_data, warnings)
+    dr_bid_ask = _load_reference_from_config(config, "dr_bid_ask_path", load_dr_bid_ask_data, warnings)
+    dr_fair_value_inputs = _load_reference_from_config(config, "dr_fair_value_inputs_path", load_dr_fair_value_inputs, warnings)
+    fx_rates = _load_reference_from_config(config, "fx_rates_path", load_fx_rates, warnings)
+    underlying_prices = _load_reference_from_config(config, "underlying_prices_path", load_underlying_prices, warnings)
 
     if thailand_dr_mapping is not None and not thailand_dr_mapping.empty:
         dr_mapping = normalize_dr_mapping(thailand_dr_mapping)
@@ -228,6 +309,11 @@ def run_pipeline_from_config(config_path: str = "config/data_sources.yaml", adap
         dr_mapping_df=dr_mapping,
         dr_price_df=dr_price_df,
         dr_volume_df=dr_volume_df,
+        dr_market_data_df=dr_market_data,
+        dr_bid_ask_df=dr_bid_ask,
+        fair_value_inputs_df=dr_fair_value_inputs,
+        underlying_prices_df=underlying_prices,
+        fx_rates_df=fx_rates,
     )
     outputs["warnings"] = pd.DataFrame({"warning": warnings})
     outputs["data_quality_report"] = summarize_reference_data_quality(price_df, metadata, dr_mapping)
@@ -242,6 +328,9 @@ def run_pipeline_from_config(config_path: str = "config/data_sources.yaml", adap
     outputs["thailand_eligibility_report"] = summarize_thailand_breadth_eligibility(thailand_eligibility)
     outputs["thailand_dr_mapping_report"] = summarize_thailand_dr_mapping_quality(thailand_dr_mapping if thailand_dr_mapping is not None else dr_mapping)
     outputs["dr_duplicate_underlying_report"] = identify_duplicate_dr_underlyings(dr_mapping) if dr_mapping is not None and not dr_mapping.empty else pd.DataFrame()
+    outputs["dr_execution_quality_data_report"] = summarize_dr_execution_quality_data(dr_market_data, dr_bid_ask)
+    outputs["dr_fair_value_coverage_report"] = summarize_dr_fair_value_coverage(dr_fair_value_inputs, underlying_prices, fx_rates)
+    outputs["dr_tracking_coverage_report"] = summarize_dr_tracking_coverage(dr_market_data, underlying_prices, fx_rates)
     outputs["pipeline_layer_status"] = summarize_layer_availability(outputs, warnings)
     return outputs
 

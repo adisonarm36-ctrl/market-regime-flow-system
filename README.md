@@ -400,6 +400,55 @@ Thailand DR/DRx mapping is loaded from local CSV reference data. The system grou
 
 To add real Thailand data, replace the sample files with manually verified local files and update `config/data_sources.yaml` reference paths. Do not mix DR/DRx rows into the domestic universe. Do not add scraped data or live API credentials in these files.
 
+## Phase 5A: DR Fair Value, FX-Adjusted Tracking, and Local Liquidity
+
+Phase 5A enhances the research system with local market-data execution quality metrics, historical tracking, and quantitative mathematical valuation calculations for DR/DRx instruments.
+
+### 1. Mathematical Valuation & Quality Formulas
+
+* **DR Fair Value**: Calculated using the ratio convention of DR units per underlying unit:
+  $$\text{fair\_value} = \left(\frac{\text{underlying\_price} \times \text{fx\_rate}}{\text{ratio}}\right) \times (1 - \text{fee\_adjustment\_pct})$$
+  Only the `DR_per_Underlying` ratio convention is supported. If a different ratio convention is specified, the system flags a validation warning and skips calculation.
+* **Premium / Discount**: Tells if a DR is trading above or below fair value:
+  $$\text{premium\_discount\_pct} = \left(\frac{\text{dr\_price}}{\text{fair\_value}} - 1\right) \times 100$$
+  * *Positive value*: DR trades at a premium (above fair value).
+  * *Negative value*: DR trades at a discount (below fair value).
+* **Bid-Ask Spread Percentage**:
+  $$\text{bid\_ask\_spread\_pct} = \left(\frac{\text{ask} - \text{bid}}{\text{mid\_price}}\right) \times 100$$
+* **FX-Adjusted Underlying Return**: Adjusts the underlying price for ratio and historical exchange rate:
+  $$\text{fx\_adjusted\_price} = \frac{\text{underlying\_price} \times \text{fx\_rate}}{\text{ratio}}$$
+  Returns are then calculated as daily percentage changes.
+* **Tracking Correlation**: Rolling Pearson correlation between daily DR returns and daily FX-adjusted underlying returns.
+* **Tracking Error**: Standard deviation of daily return differences between DR and FX-adjusted underlying:
+  $$\text{tracking\_error} = \text{std}(\text{dr\_return} - \text{fx\_adjusted\_return}) \times 100$$
+
+### 2. Capabilities Support Flags
+
+The system dynamically determines and flags which data capabilities are active/supported for each instrument:
+* `IsActive`: Loaded directly from mapping/reference data (never dynamically overwritten).
+* `LiquiditySupported`: Requires `average_traded_value_20d >= 10,000` AND `trading_days_ratio_60d >= 0.1`.
+* `SpreadSupported`: Bid/ask spread is available (i.e. `spread_pct` is not NaN).
+* `FairValueSupported`: Fair value inputs, FX rate, and underlying prices are available (i.e. `premium_discount_pct` is not NaN).
+* `TrackingSupported`: DR pricing and FX-adjusted underlying prices are available (i.e. `tracking_correlation` is not NaN).
+
+### 3. Execution Ready & Confidence Levels
+
+* **Execution Ready Label**: Strictly requires:
+  * `IsActive == True`
+  * `LiquiditySupported == True`
+  * `SpreadSupported == True`
+* **Confidence Level Buckets**:
+  * **High**: All 4 capabilities are supported (`LiquiditySupported`, `SpreadSupported`, `FairValueSupported`, `TrackingSupported` are all True).
+  * **Medium**: Liquidity and Spread are supported, but fair value or tracking data is missing.
+  * **Low**: Otherwise (e.g. mapping-only DRs or insufficient data).
+
+### 4. Data Quality & Coverage Summaries
+
+To ensure robust data health reporting, Phase 5A introduces three specialized coverage checkers:
+* `summarize_dr_execution_quality_data`: Reports counts of loaded DR market rows, spread rows, unique tickers, and average bid-ask spread.
+* `summarize_dr_fair_value_coverage`: Identifies tickers in fair value inputs missing underlying price history or FX rate series, and calculates coverage percentages.
+* `summarize_dr_tracking_coverage`: Measures date alignment and overlap counts between DR prices, underlying prices, and FX rates to assess tracking error calculation readiness.
+
 ## Future Live Adapter Rules
 
 Future live adapters should:

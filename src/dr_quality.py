@@ -4,6 +4,14 @@ import numpy as np
 import pandas as pd
 
 from .dr_mapping import normalize_dr_mapping
+from .dr_valuation import (
+    calculate_dr_fair_value,
+    calculate_premium_discount as val_premium_discount,
+    calculate_bid_ask_spread_pct,
+    calculate_fx_adjusted_underlying_return,
+    calculate_tracking_correlation as val_tracking_correlation,
+    calculate_tracking_error,
+)
 
 
 def calculate_average_traded_value(price_df: pd.DataFrame, volume_df: pd.DataFrame, window: int = 20) -> pd.Series:
@@ -225,3 +233,256 @@ def _safe_bool(value) -> bool:
     if isinstance(value, bool):
         return value
     return str(value).strip().lower() in {"true", "1", "yes", "y"}
+
+
+def rank_dr_candidates_with_execution_quality(
+    dr_mapping_df: pd.DataFrame,
+    dr_market_data_df: pd.DataFrame | None = None,
+    dr_bid_ask_df: pd.DataFrame | None = None,
+    fair_value_inputs_df: pd.DataFrame | None = None,
+    underlying_prices_df: pd.DataFrame | None = None,
+    fx_rates_df: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Enhanced DR candidate ranking using multiple data dimensions (liquidity, spread, valuation, tracking)."""
+    if dr_mapping_df is None or dr_mapping_df.empty:
+        return pd.DataFrame(columns=[
+            "DR_Ticker", "UnderlyingTicker", "Underlying_Ticker", "IsActive",
+            "LiquiditySupported", "SpreadSupported", "FairValueSupported", "TrackingSupported",
+            "confidence_level", "quality_label", "warnings", "data_quality_warning",
+            "average_traded_value_20d", "volume_consistency", "spread_pct", "spread_bps",
+            "fair_value", "premium_discount_pct", "tracking_correlation", "tracking_error",
+            "quality_score", "dr_quality_score", "execution_rank"
+        ])
+
+    mapping = dr_mapping_df.copy()
+    if "UnderlyingTicker" not in mapping.columns and "Underlying_Ticker" in mapping.columns:
+        mapping["UnderlyingTicker"] = mapping["Underlying_Ticker"]
+
+    results = []
+
+    # Copy and parse dates safely to avoid SettingWithCopyWarnings
+    market_data = dr_market_data_df.copy() if dr_market_data_df is not None else None
+    if market_data is not None and "Date" in market_data.columns:
+        market_data["Date"] = pd.to_datetime(market_data["Date"])
+
+    bid_ask = dr_bid_ask_df.copy() if dr_bid_ask_df is not None else None
+    if bid_ask is not None and "Date" in bid_ask.columns:
+        bid_ask["Date"] = pd.to_datetime(bid_ask["Date"])
+
+    und_prices = underlying_prices_df.copy() if underlying_prices_df is not None else None
+    if und_prices is not None and "Date" in und_prices.columns:
+        und_prices["Date"] = pd.to_datetime(und_prices["Date"])
+
+    fx_rates = fx_rates_df.copy() if fx_rates_df is not None else None
+    if fx_rates is not None and "Date" in fx_rates.columns:
+        fx_rates["Date"] = pd.to_datetime(fx_rates["Date"])
+
+    for _, row in mapping.iterrows():
+        ticker = row["DR_Ticker"]
+        underlying = row.get("UnderlyingTicker")
+        if pd.isna(underlying) and "Underlying_Ticker" in row:
+            underlying = row["Underlying_Ticker"]
+
+        # 1. IsActive
+        is_active = _safe_bool(row.get("IsActive", True))
+
+        # Initialize support flags
+        liq_supported = False
+        spread_supported = False
+        fv_supported = False
+        track_supported = False
+
+        row_warnings = []
+
+        # Metric values
+        avg_value_20d = np.nan
+        vol_consistency = np.nan
+        spread_pct = np.nan
+        fair_value = np.nan
+        premium_discount_pct = np.nan
+        tracking_corr = np.nan
+        tracking_err = np.nan
+
+        # Liquidity Check
+        if market_data is not None and not market_data.empty:
+            ticker_market = market_data[market_data["DR_Ticker"] == ticker]
+            if not ticker_market.empty:
+                ticker_market = ticker_market.sort_values("Date")
+                val_col = "ValueTraded" if "ValueTraded" in ticker_market.columns else "Value"
+                if val_col in ticker_market.columns:
+                    avg_value_20d = float(ticker_market[val_col].tail(20).mean())
+                else:
+                    avg_value_20d = float((ticker_market["Close"] * ticker_market["Volume"]).tail(20).mean())
+
+                if "Volume" in ticker_market.columns:
+                    vol_tail = ticker_market["Volume"].tail(20)
+                    if len(vol_tail) >= 2:
+                        mean_vol = vol_tail.mean()
+                        std_vol = vol_tail.std()
+                        if mean_vol > 0:
+                            cv = std_vol / mean_vol
+                            vol_consistency = float(100.0 / (1.0 + cv))
+                        else:
+                            vol_consistency = 0.0
+                    else:
+                        vol_consistency = 0.0
+
+                if pd.notna(avg_value_20d) and avg_value_20d > 0:
+                    liq_supported = True
+            else:
+                row_warnings.append("missing_liquidity_for_dr")
+        else:
+            row_warnings.append("missing_liquidity_for_dr")
+
+        # Bid-Ask Check
+        if bid_ask is not None and not bid_ask.empty:
+            ticker_spread = bid_ask[bid_ask["DR_Ticker"] == ticker]
+            if not ticker_spread.empty:
+                ticker_spread = ticker_spread.sort_values("Date")
+                latest_row = ticker_spread.iloc[-1]
+                bid = float(latest_row["Bid"])
+                ask = float(latest_row["Ask"])
+                spread_pct = calculate_bid_ask_spread_pct(bid, ask)
+                if pd.notna(spread_pct):
+                    spread_supported = True
+            else:
+                row_warnings.append("missing_bid_ask_spread")
+        else:
+            row_warnings.append("missing_bid_ask_spread")
+
+        # Fair Value Check
+        fv_input = None
+        if fair_value_inputs_df is not None and not fair_value_inputs_df.empty:
+            match = fair_value_inputs_df[fair_value_inputs_df["DR_Ticker"] == ticker]
+            if not match.empty:
+                fv_input = match.iloc[0]
+
+        if fv_input is not None:
+            und_ticker = fv_input["UnderlyingTicker"]
+            fx_pair = fv_input["FXPair"]
+            ratio = float(fv_input["Ratio"])
+            fee_adj = float(fv_input["FeeAdjustmentPct"])
+
+            if und_prices is not None and not und_prices.empty and fx_rates is not None and not fx_rates.empty:
+                ticker_und = und_prices[und_prices["UnderlyingTicker"] == und_ticker]
+                pair_fx = fx_rates[fx_rates["FXPair"] == fx_pair]
+
+                if not ticker_und.empty and not pair_fx.empty:
+                    merged_fv = pd.merge(ticker_und[["Date", "Close"]], pair_fx[["Date", "Rate"]], on="Date").sort_values("Date")
+                    if not merged_fv.empty:
+                        latest_fv_row = merged_fv.iloc[-1]
+                        und_price = float(latest_fv_row["Close"])
+                        fx_rate = float(latest_fv_row["Rate"])
+
+                        fair_value = calculate_dr_fair_value(und_price, fx_rate, ratio, fee_adj)
+
+                        if market_data is not None and not market_data.empty:
+                            ticker_market = market_data[market_data["DR_Ticker"] == ticker]
+                            if not ticker_market.empty:
+                                dr_close = float(ticker_market.sort_values("Date").iloc[-1]["Close"])
+                                premium_discount_pct = val_premium_discount(dr_close, fair_value)
+
+                        fv_supported = True
+                    else:
+                        row_warnings.append("missing_underlying_prices_or_fx_rates_data")
+                else:
+                    row_warnings.append("missing_underlying_prices_or_fx_rates_data")
+            else:
+                row_warnings.append("missing_underlying_prices_or_fx_rates_data")
+        else:
+            row_warnings.append("missing_fair_value_mapping")
+
+        # Tracking Check
+        if fv_supported and liq_supported:
+            und_ticker = fv_input["UnderlyingTicker"]
+            fx_pair = fv_input["FXPair"]
+            ratio = float(fv_input["Ratio"])
+
+            ticker_market = market_data[market_data["DR_Ticker"] == ticker]
+            ticker_und = und_prices[und_prices["UnderlyingTicker"] == und_ticker]
+            pair_fx = fx_rates[fx_rates["FXPair"] == fx_pair]
+
+            fx_adj_und = calculate_fx_adjusted_underlying_return(ticker_und, pair_fx, ratio)
+            if not fx_adj_und.empty:
+                tracking_corr = val_tracking_correlation(ticker_market, fx_adj_und)
+
+                dr_ret = ticker_market.sort_values("Date").copy()
+                dr_ret["dr_return"] = dr_ret["Close"].pct_change()
+                tracking_err = calculate_tracking_error(dr_ret, fx_adj_und)
+
+                if pd.notna(tracking_corr):
+                    track_supported = True
+                else:
+                    row_warnings.append("missing_tracking_correlation")
+            else:
+                row_warnings.append("missing_tracking_correlation")
+        else:
+            row_warnings.append("missing_tracking_correlation")
+
+        # Confidence Levels
+        if liq_supported and spread_supported and fv_supported and track_supported:
+            confidence_level = "High"
+        elif liq_supported and spread_supported:
+            confidence_level = "Medium"
+        else:
+            confidence_level = "Low"
+
+        # Quality Labels
+        if is_active and liq_supported and spread_supported:
+            quality_label = "Execution Ready"
+        elif fv_supported:
+            quality_label = "Fair Value Supported"
+        elif liq_supported:
+            quality_label = "Liquidity Supported"
+        elif is_active and ((market_data is not None and not market_data.empty) or (bid_ask is not None and not bid_ask.empty)):
+            quality_label = "Reference Only"
+        else:
+            quality_label = "Insufficient Data"
+
+        results.append({
+            "DR_Ticker": ticker,
+            "UnderlyingTicker": underlying,
+            "Underlying_Ticker": underlying,
+            "IsActive": is_active,
+            "LiquiditySupported": liq_supported,
+            "SpreadSupported": spread_supported,
+            "FairValueSupported": fv_supported,
+            "TrackingSupported": track_supported,
+            "confidence_level": confidence_level,
+            "quality_label": quality_label,
+            "warnings": ";".join(row_warnings),
+            "data_quality_warning": ";".join(row_warnings),
+            "average_traded_value_20d": avg_value_20d,
+            "volume_consistency": vol_consistency,
+            "spread_pct": spread_pct,
+            "spread_bps": spread_pct * 100.0 if pd.notna(spread_pct) else np.nan,
+            "fair_value": fair_value,
+            "premium_discount_pct": premium_discount_pct,
+            "tracking_correlation": tracking_corr,
+            "tracking_error": tracking_err,
+        })
+
+    df_res = pd.DataFrame(results)
+
+    # Scoring components
+    components = []
+    if "average_traded_value_20d" in df_res.columns and not df_res["average_traded_value_20d"].dropna().empty:
+        components.append(df_res["average_traded_value_20d"].rank(pct=True) * 100)
+    if "volume_consistency" in df_res.columns and not df_res["volume_consistency"].dropna().empty:
+        components.append(df_res["volume_consistency"].clip(0, 100))
+    if "spread_bps" in df_res.columns and not df_res["spread_bps"].dropna().empty:
+        components.append((100 - df_res["spread_bps"].rank(pct=True) * 100).clip(0, 100))
+    if "tracking_correlation" in df_res.columns and not df_res["tracking_correlation"].dropna().empty:
+        components.append(((df_res["tracking_correlation"].fillna(0) + 1) / 2 * 100).clip(0, 100))
+
+    if components:
+        quality_score = pd.concat(components, axis=1).mean(axis=1, skipna=True).fillna(0)
+    else:
+        quality_score = pd.Series(0.0, index=df_res.index)
+
+    df_res["quality_score"] = quality_score.round(2)
+    df_res["dr_quality_score"] = df_res["quality_score"]
+
+    df_res["execution_rank"] = df_res.groupby("UnderlyingTicker")["quality_score"].rank(method="first", ascending=False)
+    df_res = df_res.sort_values(["UnderlyingTicker", "execution_rank"]).reset_index(drop=True)
+    return df_res
