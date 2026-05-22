@@ -177,7 +177,42 @@ def main() -> None:
     elif page == "Stock Ranking":
         _show_table("Ranked Research Candidates", outputs.get("stock_ranking"))
     elif page == "DR Global Proxy":
-        _show_table("DR Execution Quality", outputs.get("dr_quality_ranking"))
+        st.markdown("### 🔍 DR Global Proxy Execution Quality Analysis")
+        st.info("⚠️ **Research Signals Only**: These tables present calculated research metrics. They do not constitute financial advice, buy/sell recommendations, or execution guarantees.")
+        
+        warnings_df = outputs.get("dr_quality_warnings", pd.DataFrame())
+        if warnings_df is not None and not warnings_df.empty:
+            st.warning("⚠️ **DR Valuation & Tracking Warnings Active**: Some candidates have missing or unsupported execution parameters.")
+            with st.expander("View Active Warnings"):
+                st.dataframe(warnings_df, use_container_width=True)
+                
+        # Create tabs for structured tables
+        tab1, tab2, tab3, tab4 = st.tabs([
+            "🏆 Execution Quality Rankings",
+            "📊 Fair Value & Premium/Discount",
+            "📈 Tracking Correlation & Error",
+            "💧 Liquidity & Spread Support"
+        ])
+        
+        with tab1:
+            st.markdown("#### Candidate Execution Quality & Rankings")
+            st.caption("Candidates grouped by Underlying Asset and ranked by overall execution quality score (0-100). Only 'Execution Ready' candidates should be used for trading.")
+            _show_table("All Mapped Candidates", outputs.get("dr_execution_quality_report"))
+            
+        with tab2:
+            st.markdown("#### Fair Value & Premium/Discount Analysis")
+            st.caption("Premium and discount percentage relative to fair value. Positive indicates DR trades above fair value (premium); negative indicates DR trades below fair value (discount).")
+            _show_table("Fair Value Details", outputs.get("dr_fair_value_report"))
+            
+        with tab3:
+            st.markdown("#### FX-Adjusted Tracking Correlation & Error")
+            st.caption("Historical price tracking versus underlying asset adjusted for currency fluctuations (USD or HKD to THB exchange rate).")
+            _show_table("Tracking & Correlation Details", outputs.get("dr_tracking_report"))
+            
+        with tab4:
+            st.markdown("#### Liquidity & Bid-Ask Spreads")
+            st.caption("Trading volume consistency, average daily traded value (20 days), and bid-ask spreads.")
+            _show_table("Liquidity Details", outputs.get("dr_liquidity_report"))
     elif page == "Daily Report":
         report = build_daily_report(outputs)
         for title, text in report.items():

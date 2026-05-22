@@ -6,7 +6,14 @@ from .asset_rotation import aggregate_flow_by_asset_class
 from .clustering import calculate_cluster_breadth, calculate_cluster_momentum, cluster_membership_table, hierarchical_clustering, rank_clusters
 from .correlation import static_correlation_matrix
 from .country_breadth import calculate_country_breadth
-from .dr_quality import build_dr_quality_table, rank_dr_candidates
+from .dr_quality import build_dr_quality_table, rank_dr_candidates, rank_dr_candidates_with_execution_quality
+from .dr_valuation import (
+    load_dr_market_data,
+    load_dr_bid_ask_data,
+    load_dr_fair_value_inputs,
+    load_fx_rates,
+    load_underlying_prices,
+)
 from .global_flow import build_flow_table
 from .momentum import calculate_momentum_table
 from .redundancy import redundancy_report
@@ -32,6 +39,11 @@ def run_topdown_pipeline(
     dr_price_df: pd.DataFrame | None = None,
     dr_volume_df: pd.DataFrame | None = None,
     benchmark_ticker: str | None = None,
+    dr_market_data_df: pd.DataFrame | None = None,
+    dr_bid_ask_df: pd.DataFrame | None = None,
+    fair_value_inputs_df: pd.DataFrame | None = None,
+    underlying_prices_df: pd.DataFrame | None = None,
+    fx_rates_df: pd.DataFrame | None = None,
 ) -> dict[str, pd.DataFrame]:
     """Run report-ready top-down research outputs from supplied CSV-derived data."""
     outputs: dict[str, pd.DataFrame] = {}
@@ -80,24 +92,43 @@ def run_topdown_pipeline(
 
     outputs["redundancy_report"] = redundancy_report(corr, momentum) if not corr.empty else pd.DataFrame()
 
-    if dr_mapping_df is not None and dr_price_df is not None and dr_volume_df is not None:
-        dr_quality = build_dr_quality_table(
-            dr_price_df=dr_price_df,
-            dr_volume_df=dr_volume_df,
-            mapping_df=dr_mapping_df,
-            underlying_price_df=price_df,
+    if dr_mapping_df is not None and not dr_mapping_df.empty:
+        dr_exec_df = rank_dr_candidates_with_execution_quality(
+            dr_mapping_df=dr_mapping_df,
+            dr_market_data_df=dr_market_data_df,
+            dr_bid_ask_df=dr_bid_ask_df,
+            fair_value_inputs_df=fair_value_inputs_df,
+            underlying_prices_df=underlying_prices_df,
+            fx_rates_df=fx_rates_df
         )
-        outputs["dr_quality_ranking"] = rank_dr_candidates(dr_quality)
+        outputs["dr_execution_quality_report"] = dr_exec_df
+        
+        if not dr_exec_df.empty:
+            outputs["dr_fair_value_report"] = dr_exec_df[[
+                "DR_Ticker", "UnderlyingTicker", "premium_discount_pct", "HasFairValueInput", "FairValueSupported", "warnings"
+            ]].copy()
+            outputs["dr_tracking_report"] = dr_exec_df[[
+                "DR_Ticker", "UnderlyingTicker", "tracking_correlation", "tracking_error", "TrackingSupported", "warnings"
+            ]].copy()
+            outputs["dr_liquidity_report"] = dr_exec_df[[
+                "DR_Ticker", "UnderlyingTicker", "average_traded_value_20d", "average_volume_20d", "trading_days_ratio_60d", "LiquiditySupported", "SpreadSupported", "warnings"
+            ]].copy()
+            outputs["dr_quality_warnings"] = dr_exec_df[dr_exec_df["warnings"].ne("")][["DR_Ticker", "warnings", "confidence_level"]].copy()
+        else:
+            outputs["dr_fair_value_report"] = pd.DataFrame()
+            outputs["dr_tracking_report"] = pd.DataFrame()
+            outputs["dr_liquidity_report"] = pd.DataFrame()
+            outputs["dr_quality_warnings"] = pd.DataFrame()
+            
+        outputs["dr_quality_ranking"] = dr_exec_df
     else:
-        missing = []
-        if dr_mapping_df is None:
-            missing.append("dr_mapping")
-        if dr_price_df is None:
-            missing.append("dr_prices")
-        if dr_volume_df is None:
-            missing.append("dr_volume")
+        outputs["dr_execution_quality_report"] = pd.DataFrame()
+        outputs["dr_fair_value_report"] = pd.DataFrame()
+        outputs["dr_tracking_report"] = pd.DataFrame()
+        outputs["dr_liquidity_report"] = pd.DataFrame()
+        outputs["dr_quality_warnings"] = pd.DataFrame()
         outputs["dr_quality_ranking"] = pd.DataFrame(
-            [{"data_quality_warning": f"DR quality skipped: missing optional data ({', '.join(missing)})"}]
+            [{"data_quality_warning": "DR quality skipped: missing optional data (dr_mapping)"}]
         )
 
     if metadata_df is not None and not metadata_df.empty:
@@ -147,6 +178,37 @@ def run_pipeline_from_config(config_path: str = "config/data_sources.yaml", adap
             dr_volume_df = volume_df[dr_tickers]
         else:
             warnings.append("DR mapping exists but no DR tickers are present in price data")
+            
+    # Load optional execution quality reference files
+    dr_market_data = None
+    dr_bid_ask = None
+    dr_fair_value_inputs = None
+    fx_rates = None
+    underlying_prices = None
+    
+    active_src = config.get("active_source", "csv")
+    reference = config.get("source_settings", {}).get(active_src, {}).get("reference_data", {})
+    
+    def _load_optional_csv(key, loader_fn):
+        path = reference.get(key)
+        if path:
+            try:
+                return loader_fn(path)
+            except Exception as e:
+                warnings.append(f"Optional {key} loading failed: {e}")
+        return None
+        
+    dr_market_data = _load_optional_csv("dr_market_data_path", load_dr_market_data)
+    dr_bid_ask = _load_optional_csv("dr_bid_ask_path", load_dr_bid_ask_data)
+    dr_fair_value_inputs = _load_optional_csv("dr_fair_value_inputs_path", load_dr_fair_value_inputs)
+    fx_rates = _load_optional_csv("fx_rates_path", load_fx_rates)
+    underlying_prices = _load_optional_csv("underlying_prices_path", load_underlying_prices)
+    
+    # Check FX pairs and Underlying overlap if loaded
+    if dr_fair_value_inputs is not None:
+        fair_val_warnings = validate_dr_fair_value_inputs_schema(dr_fair_value_inputs)
+        if fair_val_warnings:
+            warnings.extend(fair_val_warnings)
 
     outputs = run_topdown_pipeline(
         price_df=price_df,
@@ -157,6 +219,11 @@ def run_pipeline_from_config(config_path: str = "config/data_sources.yaml", adap
         dr_mapping_df=dr_mapping,
         dr_price_df=dr_price_df,
         dr_volume_df=dr_volume_df,
+        dr_market_data_df=dr_market_data,
+        dr_bid_ask_df=dr_bid_ask,
+        fair_value_inputs_df=dr_fair_value_inputs,
+        underlying_prices_df=underlying_prices,
+        fx_rates_df=fx_rates,
     )
     outputs["warnings"] = pd.DataFrame({"warning": warnings})
     outputs["data_quality_report"] = summarize_reference_data_quality(price_df, metadata, dr_mapping)

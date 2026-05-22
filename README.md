@@ -330,8 +330,49 @@ To add Thailand tickers, add verified tickers and metadata rows to your local re
 To add DR mappings, add local rows with:
 
 ```csv
-DR_Ticker,Underlying_Ticker
+DR_Ticker,Underlying_Ticker,IsActive
 ```
+
+Note: `IsActive` is loaded directly from the DR mapping reference file to determine if the candidate mapping is currently active/enabled.
+
+### DR Execution Quality & Valuation Inputs (Phase 5A)
+
+To enable detailed execution-quality valuation and historical price tracking for DR/DRx tickers, add the following optional local reference CSV files under `data/reference/thailand/dr_quality/` and configure their paths under the `reference_data` section of `config/data_sources.yaml`:
+
+1. **DR Market Data**: Date-based trading data.
+   Columns: `Date,DR_Ticker,Open,High,Low,Close,Volume,ValueTraded`
+2. **DR Bid-Ask Spreads**: Bid-ask spread and depth samples.
+   Columns: `Date,DR_Ticker,Bid,Ask,BidSize,AskSize`
+3. **DR Fair Value Inputs**: Structural parameters for calculating fair value.
+   Columns: `DR_Ticker,UnderlyingTicker,UnderlyingCurrency,DR_Currency,Ratio,FXPair,FeeAdjustmentPct,RatioConvention,Notes`
+   * *Ratio*: Number of DR units per 1 underlying unit.
+   * *RatioConvention*: Must be `DR_per_Underlying` to be processed. If different or missing, validation warnings are issued.
+4. **Historical FX Rates**: Historical currency exchange rates.
+   Columns: `Date,FXPair,Rate`
+5. **Underlying Foreign Asset Prices**: Historical prices of foreign underlying assets.
+   Columns: `Date,UnderlyingTicker,Close,Currency`
+
+### Core Math Formulas
+
+* **Fair Value**:
+  $$\text{Fair Value} = \left(\frac{\text{Underlying Price} \times \text{FX Rate}}{\text{Ratio}}\right) \times (1 - \text{FeeAdjustmentPct})$$
+* **Premium / Discount \%**:
+  $$\text{Premium/Discount \%} = \left(\frac{\text{DR Price}}{\text{Fair Value}} - 1\right) \times 100$$
+  * Positive value indicates the DR trades at a premium (above fair value).
+  * Negative value indicates the DR trades at a discount (below fair value).
+* **Bid-Ask Spread \%**:
+  $$\text{Spread \%} = \frac{\text{Ask} - \text{Bid}}{\frac{\text{Bid} + \text{Ask}}{2}} \times 100$$
+
+### Support Flags & Labels
+
+The engine decouples structural active flags from execution support layers:
+* `LiquiditySupported`: Average traded value (20 days) $\ge 10,000$ and trading days ratio $\ge 0.1$.
+* `SpreadSupported`: Bid-ask spread is available (not NaN).
+* `FairValueSupported`: Fair value data overlaps and premium/discount is calculated.
+* `TrackingSupported`: Return tracking correlation is calculated.
+* **Execution Ready Label**: Strictly requires `IsActive == True` AND `LiquiditySupported == True` AND `SpreadSupported == True`.
+* **High Confidence Level**: Requires all four data layers (`LiquiditySupported`, `SpreadSupported`, `FairValueSupported`, and `TrackingSupported` are all `True`).
+
 
 If the dashboard shows missing metadata warnings:
 

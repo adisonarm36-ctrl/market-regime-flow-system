@@ -59,3 +59,51 @@ def summarize_layer_availability(outputs: dict[str, pd.DataFrame], warnings: lis
 def _reason_for_layer(key: str, warnings: list[str]) -> str:
     matches = [warning for warning in warnings if key.split("_")[0] in warning.lower()]
     return "; ".join(matches) if matches else "missing optional data or no supported input"
+
+
+def summarize_dr_execution_quality_data(dr_exec_df: pd.DataFrame | None) -> pd.DataFrame:
+    """Summarize execution quality status statistics across all DRs."""
+    if dr_exec_df is None or dr_exec_df.empty:
+        return pd.DataFrame([{
+            "total_dr_mapped": 0,
+            "liquidity_supported_count": 0,
+            "spread_supported_count": 0,
+            "fair_value_supported_count": 0,
+            "tracking_supported_count": 0,
+            "execution_ready_count": 0,
+            "confidence_high_count": 0,
+            "confidence_medium_count": 0,
+            "confidence_low_count": 0,
+        }])
+        
+    return pd.DataFrame([{
+        "total_dr_mapped": len(dr_exec_df),
+        "liquidity_supported_count": int(dr_exec_df["LiquiditySupported"].sum()) if "LiquiditySupported" in dr_exec_df.columns else 0,
+        "spread_supported_count": int(dr_exec_df["SpreadSupported"].sum()) if "SpreadSupported" in dr_exec_df.columns else 0,
+        "fair_value_supported_count": int(dr_exec_df["FairValueSupported"].sum()) if "FairValueSupported" in dr_exec_df.columns else 0,
+        "tracking_supported_count": int(dr_exec_df["TrackingSupported"].sum()) if "TrackingSupported" in dr_exec_df.columns else 0,
+        "execution_ready_count": int((dr_exec_df["quality_label"] == "Execution Ready").sum()) if "quality_label" in dr_exec_df.columns else 0,
+        "confidence_high_count": int((dr_exec_df["confidence_level"] == "High").sum()) if "confidence_level" in dr_exec_df.columns else 0,
+        "confidence_medium_count": int((dr_exec_df["confidence_level"] == "Medium").sum()) if "confidence_level" in dr_exec_df.columns else 0,
+        "confidence_low_count": int((dr_exec_df["confidence_level"] == "Low").sum()) if "confidence_level" in dr_exec_df.columns else 0,
+    }])
+
+
+def summarize_dr_fair_value_coverage(dr_exec_df: pd.DataFrame | None) -> pd.DataFrame:
+    """Return ticker-level fair value coverage details."""
+    if dr_exec_df is None or dr_exec_df.empty:
+        return pd.DataFrame(columns=["DR_Ticker", "UnderlyingTicker", "HasFairValueInput", "FairValueSupported", "warnings"])
+        
+    cols = ["DR_Ticker", "UnderlyingTicker", "HasFairValueInput", "FairValueSupported", "warnings"]
+    existing_cols = [c for c in cols if c in dr_exec_df.columns]
+    return dr_exec_df[existing_cols].copy()
+
+
+def summarize_dr_tracking_coverage(dr_exec_df: pd.DataFrame | None) -> pd.DataFrame:
+    """Return ticker-level tracking and correlation coverage details."""
+    if dr_exec_df is None or dr_exec_df.empty:
+        return pd.DataFrame(columns=["DR_Ticker", "UnderlyingTicker", "TrackingSupported", "tracking_correlation", "tracking_error", "warnings"])
+        
+    cols = ["DR_Ticker", "UnderlyingTicker", "TrackingSupported", "tracking_correlation", "tracking_error", "warnings"]
+    existing_cols = [c for c in cols if c in dr_exec_df.columns]
+    return dr_exec_df[existing_cols].copy()
