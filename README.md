@@ -344,9 +344,61 @@ In dashboard `Config source` mode, the app displays:
 
 - Data Source Status
 - Reference Data Status
+- Thailand Reference Status
+- Thailand Domestic Breadth Eligibility
+- Thailand DR / DRx Reference
 - Pipeline Layer Status
 - reference warnings
 - tickers missing metadata
+
+## Thailand Reference Data Workflow
+
+Phase 4 adds local-reference workflows for Thailand universes and DR/DRx mappings. No live APIs, scraping, API keys, or realtime inputs are used. Yahoo, when configured, remains historical price-only.
+
+Thailand sample reference files live in `data/reference/thailand/` and are fake/demo data only:
+
+- `thailand_universe_sample.csv`
+- `thailand_sector_map_sample.csv`
+- `thailand_security_types_sample.csv`
+- `thailand_liquidity_sample.csv`
+- `thailand_dr_mapping_sample.csv`
+
+Required Thailand universe schema:
+
+```csv
+Ticker,Name,Country,Exchange,Universe,SecurityType,Sector,Industry,Currency,IsDR,IsDRx,IsETF,IsDW,IsWarrant,Suspended,IncludeInDomesticBreadth,Notes
+```
+
+Other Thailand reference schemas:
+
+```csv
+Ticker,Sector,Industry,Country,Exchange,Universe
+Ticker,SecurityType,IsDomesticStock,IsDR,IsDRx,IsETF,IsDW,IsWarrant,Suspended,IncludeInDomesticBreadth,ExclusionReason
+Ticker,average_traded_value_20d,average_volume_20d,trading_days_ratio_60d,liquidity_bucket,Notes
+DR_Ticker,DR_Type,UnderlyingTicker,UnderlyingName,UnderlyingExchange,UnderlyingCountry,UnderlyingCurrency,DR_Currency,Ratio,IssuerCode,LocalExchange,IsActive,HasFairValueInput,FairValueSource,FXPair,Notes
+```
+
+Boolean-like fields accept `true/false`, `TRUE/FALSE`, `1/0`, `yes/no`, and `Y/N`. Missing required columns raise validation errors. Unknown `SecurityType` or `Universe` values are flagged as schema warnings, not silently accepted.
+
+### Domestic Thailand Breadth Eligibility
+
+Thailand domestic breadth uses local metadata only. A row is eligible only when it is a Thailand domestic common stock or equivalent, is not DR/DRx/ETF/DW/warrant, is not suspended, and has `IncludeInDomesticBreadth` set to true.
+
+Optional local liquidity filters are configured in `config/thailand_universe.yaml`:
+
+```yaml
+liquidity_filter:
+  min_avg_value_20d_thb: 5000000
+  min_trading_days_ratio_60d: 0.85
+```
+
+DR/DRx are excluded because they are Thailand-listed proxy instruments for foreign underlyings. They must not be used to judge Thailand domestic market health. For DR/DRx, use the underlying instrument for signal and local DR data only for execution-quality research metrics.
+
+### DR / DRx Mapping
+
+Thailand DR/DRx mapping is loaded from local CSV reference data. The system groups DRs by underlying, identifies duplicate underlying groups, and ranks candidates from mapping-only or liquidity-supported inputs. Reference-only rankings are labeled with limited-confidence warnings and do not claim best tradable status without local liquidity, spread, tracking, or fair value data.
+
+To add real Thailand data, replace the sample files with manually verified local files and update `config/data_sources.yaml` reference paths. Do not mix DR/DRx rows into the domestic universe. Do not add scraped data or live API credentials in these files.
 
 ## Future Live Adapter Rules
 
@@ -371,9 +423,11 @@ Export helpers:
 ## Current Limitations
 
 - Yahoo/yfinance historical adapter is available, but no realtime or streaming adapters are implemented.
+- Thailand reference sample files are fake/demo data only.
+- Real Thailand universes, sectors, security types, and DR mappings must be verified manually before research use.
 - No official exchange calendars.
 - Flow is a price-based proxy unless actual fund-flow data is supplied.
-- DR fair value, FX-adjusted tracking, and bid/ask spread are calculated only when matching data is supplied.
+- DR fair value, FX-adjusted tracking, bid/ask spread, and tracking quality require local market data inputs.
 - Dashboard expects CSV inputs and does not persist user settings.
 - Sample data is fake/demo data only.
 

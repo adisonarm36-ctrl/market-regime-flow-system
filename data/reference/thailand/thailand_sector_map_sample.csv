@@ -1,0 +1,6 @@
+Ticker,Sector,Industry,Country,Exchange,Universe
+DEMO_TH_A,Demo Industrials,Demo Machinery,Thailand,DEMO_EXCHANGE,SET50
+DEMO_TH_B,Demo Technology,Demo Software,Thailand,DEMO_EXCHANGE,SET100
+DEMO_TH_C,Demo Consumer,Demo Retail,Thailand,DEMO_EXCHANGE,mai
+DEMO_TH_DR,Demo Foreign Proxy,Demo DR,Thailand,DEMO_EXCHANGE,SET
+DEMO_TH_DRX,Demo Foreign Proxy,Demo DRx,Thailand,DEMO_EXCHANGE,SET

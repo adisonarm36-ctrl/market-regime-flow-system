@@ -152,10 +152,12 @@ def main() -> None:
         "Global Flow Map",
         "Country Market Health",
         "Thailand Market Health",
+        "Thailand Reference Status",
         "Sector Breadth",
         "Theme / Correlation Cluster",
         "Stock Ranking",
         "DR Global Proxy",
+        "Redundancy Report",
         "Daily Report",
     ]
     page = st.sidebar.radio("Page", pages)
@@ -167,7 +169,15 @@ def main() -> None:
         _show_table("Country Breadth Summary", outputs.get("country_breadth_summary"))
     elif page == "Thailand Market Health":
         _show_table("Thailand Market Health", outputs.get("thailand_market_health"))
-        _show_table("Excluded Securities", outputs.get("excluded_summary"))
+        _show_table("Thailand Domestic Breadth Eligibility", outputs.get("thailand_eligibility_report"))
+        _show_table("Excluded Securities", outputs.get("thailand_excluded_securities", outputs.get("excluded_summary")))
+        st.caption("DR/DRx, DW, ETF, warrants, suspended, and failed-liquidity rows are excluded from Thailand domestic breadth.")
+    elif page == "Thailand Reference Status":
+        st.info("Thailand reference sample files are fake/demo data only. Replace them with verified local CSV/YAML files for research.")
+        _show_table("Thailand Reference Status", outputs.get("thailand_reference_report"))
+        _show_table("Thailand Domestic Breadth Eligibility", outputs.get("thailand_eligibility_report"))
+        _show_table("Thailand DR / DRx Reference", outputs.get("thailand_dr_mapping_report"))
+        _show_table("Duplicate DR Underlying Groups", outputs.get("dr_duplicate_underlying_report"))
     elif page == "Sector Breadth":
         _show_table("Sector Breadth Summary", outputs.get("sector_breadth_summary"))
     elif page == "Theme / Correlation Cluster":
@@ -178,6 +188,10 @@ def main() -> None:
         _show_table("Ranked Research Candidates", outputs.get("stock_ranking"))
     elif page == "DR Global Proxy":
         _show_table("DR Execution Quality", outputs.get("dr_quality_ranking"))
+        _show_table("Thailand DR / DRx Reference", outputs.get("thailand_dr_mapping_report"))
+        _show_table("Duplicate DR Underlying Groups", outputs.get("dr_duplicate_underlying_report"))
+    elif page == "Redundancy Report":
+        _show_table("Redundant Instruments", outputs.get("redundancy_report"))
     elif page == "Daily Report":
         report = build_daily_report(outputs)
         for title, text in report.items():
@@ -196,6 +210,9 @@ def _show_table(title: str, table: pd.DataFrame | None) -> None:
 def _show_status_tables(outputs: dict[str, pd.DataFrame]) -> None:
     st.subheader("Data Source Status")
     _show_table("Reference Data Status", outputs.get("data_quality_report"))
+    _show_table("Thailand Reference Status", outputs.get("thailand_reference_report"))
+    _show_table("Thailand Eligibility Status", outputs.get("thailand_eligibility_report"))
+    _show_table("Thailand DR / DRx Status", outputs.get("thailand_dr_mapping_report"))
     _show_table("Tickers Missing Metadata", outputs.get("reference_data_report"))
     _show_table("Pipeline Layer Status", outputs.get("pipeline_layer_status"))
     warnings = outputs.get("warnings")

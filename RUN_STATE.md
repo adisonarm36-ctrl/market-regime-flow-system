@@ -2,33 +2,35 @@
 
 ## Last Completed Work
 
-Phase 3B: Hybrid Yahoo + Local Reference Data Integration.
+Phase 4: Thailand Universe and DR Reference Data.
 
-The project is currently safe to continue from the existing codebase. CSV remains supported, Yahoo historical price loading is optional, and local reference data is required for metadata-driven layers.
+The project is currently safe to continue from the existing codebase. CSV remains supported, Yahoo historical price loading is optional, and Thailand metadata, universe membership, security type flags, liquidity references, and DR/DRx mappings are local-reference workflows.
 
 ## Current Test Result
 
-`63 passed`
+`76 passed`
 
 ## Next Phase
 
-Phase 4: Thailand Universe and DR Reference Data
+Phase 5: DR Fair Value, FX-Adjusted Tracking, and Local Liquidity Inputs
+
+Alternative: Phase 5: Backtest and Risk Throttle
 
 ## Exact Next Prompt
 
 ```text
 Read AGENTS.md first.
 
-Implement Phase 4: Thailand Universe and DR Reference Data.
+Implement Phase 5: DR Fair Value, FX-Adjusted Tracking, and Local Liquidity Inputs.
 
 Goal:
-Create verified local-reference workflows for Thailand market universes and DR/DRx mappings without live APIs.
+Add local-file support for DR fair value, FX-adjusted tracking, spreads, and execution-quality inputs without live APIs or scraping.
 
 Tasks:
-- Add configurable Thailand universe files for SET50, SET100, SET ex-DR, and mai.
-- Add schema validation for Thailand security types, suspended flags, and liquidity fields.
-- Add DR/DRx reference schema with underlying ticker, market, currency, ratio, and optional fair value inputs.
-- Ensure Thailand domestic breadth excludes DR, DRx, DW, ETF, warrants, suspended, and illiquid securities.
+- Add local fair value and FX input schemas.
+- Add local bid/ask spread input schemas.
+- Calculate FX-adjusted DR tracking correlation when local inputs exist.
+- Keep reference-only DR rankings clearly labeled as limited confidence when inputs are missing.
 - Add tests using fake/demo Thailand reference data only.
 - Update dashboard status tables and README.
 Constraints:
@@ -47,3 +49,4 @@ Constraints:
 - Preserve CSV fallback.
 - Preserve Yahoo as historical price-only source.
 - Keep DR/DRx separate from Thailand domestic breadth.
+- Bundled Thailand reference files are fake/demo samples only.

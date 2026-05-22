@@ -3,6 +3,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from .dr_mapping import normalize_dr_mapping
+
 
 def calculate_average_traded_value(price_df: pd.DataFrame, volume_df: pd.DataFrame, window: int = 20) -> pd.Series:
     """Calculate latest average traded value over a rolling window."""
@@ -130,6 +132,82 @@ def rank_dr_candidates(dr_quality_df: pd.DataFrame) -> pd.DataFrame:
     return result.sort_values(["Underlying_Ticker", "execution_rank"]).reset_index(drop=True)
 
 
+def rank_dr_candidates_by_reference_quality(
+    dr_mapping_df: pd.DataFrame,
+    dr_liquidity_df: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Rank Thailand DR/DRx candidates from local reference and optional liquidity data only."""
+    mapping = normalize_dr_mapping(dr_mapping_df)
+    if mapping.empty:
+        return pd.DataFrame(columns=["DR_Ticker", "UnderlyingTicker", "DR_Type", "quality_score", "quality_label", "reasons", "warnings"])
+    rows = mapping.copy()
+    if dr_liquidity_df is not None and not dr_liquidity_df.empty:
+        liquidity_columns = [
+            column
+            for column in ["Ticker", "average_traded_value_20d", "average_volume_20d", "trading_days_ratio_60d"]
+            if column in dr_liquidity_df.columns
+        ]
+        rows = rows.merge(dr_liquidity_df[liquidity_columns], left_on="DR_Ticker", right_on="Ticker", how="left")
+
+    scores = []
+    labels = []
+    reasons = []
+    warnings = []
+    has_liquidity_input = dr_liquidity_df is not None and not dr_liquidity_df.empty
+    for _, row in rows.iterrows():
+        score = 0.0
+        row_reasons: list[str] = []
+        row_warnings: list[str] = []
+        is_active = _safe_bool(row.get("IsActive", True))
+        has_fair_value = _safe_bool(row.get("HasFairValueInput", False))
+        if is_active:
+            score += 30
+            row_reasons.append("active_mapping")
+        else:
+            row_reasons.append("inactive_mapping")
+            row_warnings.append("inactive_dr_reference")
+
+        if pd.notna(row.get("average_traded_value_20d")):
+            score += min(35, np.log10(max(float(row["average_traded_value_20d"]), 1)) * 5)
+            row_reasons.append("average_traded_value_available")
+        if pd.notna(row.get("average_volume_20d")):
+            score += min(15, np.log10(max(float(row["average_volume_20d"]), 1)) * 3)
+            row_reasons.append("average_volume_available")
+        if pd.notna(row.get("trading_days_ratio_60d")):
+            score += max(0, min(15, float(row["trading_days_ratio_60d"]) * 15))
+            row_reasons.append("trading_days_ratio_available")
+        if has_fair_value:
+            score += 10
+            row_reasons.append("fair_value_input_available")
+
+        if not has_liquidity_input:
+            row_warnings.append("limited_confidence_mapping_only")
+            label = "Reference Only" if is_active else "Insufficient Data"
+        elif has_fair_value:
+            label = "Fair Value Supported"
+        elif any(reason.endswith("available") for reason in row_reasons):
+            label = "Liquidity Supported"
+        else:
+            row_warnings.append("missing_liquidity_for_dr")
+            label = "Insufficient Data"
+
+        scores.append(round(float(score), 2))
+        labels.append(label)
+        reasons.append(";".join(row_reasons))
+        warnings.append(";".join(row_warnings))
+
+    rows["quality_score"] = scores
+    rows["quality_label"] = labels
+    rows["reasons"] = reasons
+    rows["warnings"] = warnings
+    rows["data_quality_warning"] = rows["warnings"].map(
+        lambda value: f"DR quality skipped: missing optional price/volume data; using reference-only ranking; {value}".strip("; ")
+    )
+    result = rows.rename(columns={"Underlying_Ticker": "UnderlyingTicker_alias"})
+    columns = ["DR_Ticker", "UnderlyingTicker", "DR_Type", "quality_score", "quality_label", "reasons", "warnings", "data_quality_warning"]
+    return result[columns].sort_values(["UnderlyingTicker", "quality_score"], ascending=[True, False]).reset_index(drop=True)
+
+
 def _quality_warning(row: pd.Series) -> str:
     warnings = []
     if pd.isna(row.get("spread_bps")):
@@ -139,3 +217,11 @@ def _quality_warning(row: pd.Series) -> str:
     if pd.isna(row.get("premium_discount")):
         warnings.append("missing_premium_discount")
     return ";".join(warnings)
+
+
+def _safe_bool(value) -> bool:
+    if pd.isna(value):
+        return False
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"true", "1", "yes", "y"}

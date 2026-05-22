@@ -1,0 +1,4 @@
+DR_Ticker,DR_Type,UnderlyingTicker,UnderlyingName,UnderlyingExchange,UnderlyingCountry,UnderlyingCurrency,DR_Currency,Ratio,IssuerCode,LocalExchange,IsActive,HasFairValueInput,FairValueSource,FXPair,Notes
+DEMO_TH_DR,DR,DEMO_US_UNDERLYING_A,Demo Foreign Underlying A,DEMO_FOREIGN_EXCHANGE,United States,USD,THB,1.0,DEMO_ISSUER,DEMO_EXCHANGE,true,false,,USDTHB,Fake/demo mapping only
+DEMO_TH_DRX,DRx,DEMO_US_UNDERLYING_A,Demo Foreign Underlying A,DEMO_FOREIGN_EXCHANGE,United States,USD,THB,0.5,DEMO_ISSUER,DEMO_EXCHANGE,true,false,,USDTHB,Fake/demo duplicate underlying group
+DEMO_TH_DR_INACTIVE,DR,DEMO_JP_UNDERLYING_B,Demo Foreign Underlying B,DEMO_FOREIGN_EXCHANGE,Japan,JPY,THB,1.0,DEMO_ISSUER,DEMO_EXCHANGE,false,false,,JPYTHB,Fake/demo inactive mapping

@@ -6,6 +6,8 @@ from .country_breadth import calculate_breadth_timeseries, latest_country_breadt
 
 
 DEFAULT_EXCLUDED_TYPES = {"DR", "DRx", "DW", "ETF", "warrant"}
+DOMESTIC_STOCK_TYPES = {"Common Stock", "Stock", "Domestic Stock"}
+EXCLUSION_FLAG_COLUMNS = ["IsDR", "IsDRx", "IsETF", "IsDW", "IsWarrant"]
 
 
 def apply_thai_liquidity_filter(
@@ -58,6 +60,89 @@ def filter_thailand_domestic_universe(
     return data[included_mask].copy(), excluded
 
 
+def filter_thailand_domestic_breadth_universe(
+    metadata_df: pd.DataFrame,
+    liquidity_df: pd.DataFrame | None = None,
+    universe: str | None = None,
+    min_avg_value_20d: float | None = None,
+    min_trading_days_ratio_60d: float | None = None,
+) -> dict[str, object]:
+    """Build an auditable Thailand domestic breadth universe from local reference data."""
+    required = {"Ticker", "SecurityType"}
+    if not required.issubset(metadata_df.columns):
+        raise ValueError("metadata_df must include Ticker and SecurityType")
+
+    data = metadata_df.copy()
+    if liquidity_df is not None and not liquidity_df.empty:
+        liquidity_columns = [
+            column
+            for column in ["Ticker", "average_traded_value_20d", "average_volume_20d", "trading_days_ratio_60d", "liquidity_bucket"]
+            if column in liquidity_df.columns
+        ]
+        data = data.merge(liquidity_df[liquidity_columns], on="Ticker", how="left", suffixes=("", "_liquidity"))
+
+    reasons = pd.Series("", index=data.index, dtype="object")
+    include_mask = pd.Series(True, index=data.index)
+
+    def exclude(mask: pd.Series, reason: str) -> None:
+        nonlocal include_mask, reasons
+        mask = mask.fillna(False)
+        include_mask &= ~mask
+        reasons.loc[mask] = reasons.loc[mask].map(lambda value: f"{value};{reason}" if value else reason)
+
+    if "Country" in data.columns:
+        exclude(~data["Country"].astype(str).str.strip().eq("Thailand"), "not_thailand")
+    if universe is not None and "Universe" in data.columns:
+        normalized_universe = "SET ex-DR" if universe == "SET_ex_DR" else universe
+        exclude(~data["Universe"].astype(str).str.strip().eq(normalized_universe), "outside_universe")
+
+    security_type = data["SecurityType"].astype(str).str.strip()
+    exclude(~security_type.isin(DOMESTIC_STOCK_TYPES), "non_domestic_security_type")
+
+    for column in EXCLUSION_FLAG_COLUMNS:
+        if column in data.columns:
+            exclude(_as_bool(data[column]), column.lower())
+
+    if "Suspended" in data.columns:
+        exclude(_as_bool(data["Suspended"]), "suspended")
+    if "IncludeInDomesticBreadth" in data.columns:
+        exclude(~_as_bool(data["IncludeInDomesticBreadth"]).fillna(False), "not_included_by_reference")
+
+    if min_avg_value_20d is not None and "average_traded_value_20d" in data.columns:
+        values = pd.to_numeric(data["average_traded_value_20d"], errors="coerce")
+        exclude(values.isna() | values.lt(float(min_avg_value_20d)), "illiquid_avg_value_20d")
+    if min_trading_days_ratio_60d is not None and "trading_days_ratio_60d" in data.columns:
+        ratios = pd.to_numeric(data["trading_days_ratio_60d"], errors="coerce")
+        exclude(ratios.isna() | ratios.lt(float(min_trading_days_ratio_60d)), "illiquid_trading_days_ratio_60d")
+
+    included = data.loc[include_mask].copy()
+    excluded = data.loc[~include_mask].copy()
+    excluded["ExclusionReason"] = reasons.loc[~include_mask].str.strip(";")
+    excluded["exclusion_reason"] = excluded["ExclusionReason"]
+    report = pd.DataFrame(
+        [
+            {
+                "selected_universe": universe or "All",
+                "included_count": int(include_mask.sum()),
+                "excluded_count": int((~include_mask).sum()),
+                "min_avg_value_20d": min_avg_value_20d,
+                "min_trading_days_ratio_60d": min_trading_days_ratio_60d,
+            }
+        ]
+    )
+    reason_breakdown = excluded_securities_summary(excluded)
+    if not reason_breakdown.empty:
+        report = report.merge(reason_breakdown.assign(key=1), how="cross") if hasattr(report, "merge") else report
+    return {
+        "included_tickers": included["Ticker"].tolist(),
+        "excluded_tickers": excluded[["Ticker", "ExclusionReason"]] if not excluded.empty else pd.DataFrame(columns=["Ticker", "ExclusionReason"]),
+        "eligibility_report": report,
+        "included_securities": included,
+        "excluded_securities": excluded,
+        "exclusion_reason_breakdown": reason_breakdown,
+    }
+
+
 def excluded_securities_summary(excluded_df: pd.DataFrame) -> pd.DataFrame:
     """Summarize excluded Thailand securities by exclusion reason."""
     if excluded_df.empty or "exclusion_reason" not in excluded_df.columns:
@@ -77,13 +162,19 @@ def calculate_thai_market_breadth(
     metadata_df: pd.DataFrame,
     universe: str = "SET ex-DR",
     min_average_traded_value_20d: float = 0,
+    liquidity_df: pd.DataFrame | None = None,
+    min_trading_days_ratio_60d: float | None = None,
 ) -> dict[str, pd.DataFrame]:
     """Calculate Thailand domestic breadth without mixing DRs or other excluded instruments."""
-    included, excluded = filter_thailand_domestic_universe(
-        metadata_df,
+    eligibility = filter_thailand_domestic_breadth_universe(
+        metadata_df=metadata_df,
+        liquidity_df=liquidity_df,
         universe=universe,
-        min_average_traded_value_20d=min_average_traded_value_20d,
+        min_avg_value_20d=min_average_traded_value_20d,
+        min_trading_days_ratio_60d=min_trading_days_ratio_60d,
     )
+    included = eligibility["included_securities"]
+    excluded = eligibility["excluded_securities"]
     tickers = [ticker for ticker in included["Ticker"] if ticker in price_df.columns]
 
     if not tickers:
@@ -95,6 +186,7 @@ def calculate_thai_market_breadth(
             "included_securities": included,
             "excluded_securities": excluded,
             "excluded_summary": excluded_securities_summary(excluded),
+            "thailand_eligibility_report": eligibility["eligibility_report"],
         }
 
     latest = latest_country_breadth(price_df[tickers], "Thailand")
@@ -105,6 +197,7 @@ def calculate_thai_market_breadth(
         "included_securities": included,
         "excluded_securities": excluded,
         "excluded_summary": excluded_securities_summary(excluded),
+        "thailand_eligibility_report": eligibility["eligibility_report"],
     }
 
 
@@ -133,3 +226,21 @@ def calculate_thai_sector_breadth(
         summary[sector_column] = sector
         summaries.append(summary)
     return pd.DataFrame(summaries)
+
+
+def _as_bool(series: pd.Series) -> pd.Series:
+    if str(series.dtype) == "boolean":
+        return series.fillna(False).astype(bool)
+    if series.dtype == bool:
+        return series.fillna(False)
+    mapping = {
+        "true": True,
+        "false": False,
+        "1": True,
+        "0": False,
+        "yes": True,
+        "no": False,
+        "y": True,
+        "n": False,
+    }
+    return series.map(lambda value: mapping.get(str(value).strip().lower(), False) if pd.notna(value) else False)

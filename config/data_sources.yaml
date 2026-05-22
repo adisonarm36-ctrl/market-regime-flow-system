@@ -5,6 +5,12 @@ source_settings:
     metadata_path:
     sector_map_path:
     dr_mapping_path:
+    reference_data:
+      thailand_universe_path: data/reference/thailand/thailand_universe_sample.csv
+      thailand_sector_map_path: data/reference/thailand/thailand_sector_map_sample.csv
+      thailand_security_types_path: data/reference/thailand/thailand_security_types_sample.csv
+      thailand_liquidity_path: data/reference/thailand/thailand_liquidity_sample.csv
+      thailand_dr_mapping_path: data/reference/thailand/thailand_dr_mapping_sample.csv
   yahoo:
     tickers:
       - SPY
@@ -32,3 +38,8 @@ source_settings:
       country_map_path: data/reference/country_map.csv
       asset_map_path: config/asset_map.yaml
       dr_mapping_path: config/dr_mapping.yaml
+      thailand_universe_path: data/reference/thailand/thailand_universe_sample.csv
+      thailand_sector_map_path: data/reference/thailand/thailand_sector_map_sample.csv
+      thailand_security_types_path: data/reference/thailand/thailand_security_types_sample.csv
+      thailand_liquidity_path: data/reference/thailand/thailand_liquidity_sample.csv
+      thailand_dr_mapping_path: data/reference/thailand/thailand_dr_mapping_sample.csv

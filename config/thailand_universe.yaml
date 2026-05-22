@@ -1,15 +1,26 @@
-universes:
-  SET50: []
-  SET100: []
-  SET ex-DR: []
-  mai: []
+default_universe: SET100
 
-excluded_types:
+universes:
+  SET50:
+    description: Thailand SET50 domestic stock universe
+  SET100:
+    description: Thailand SET100 domestic stock universe
+  SET:
+    description: Thailand broad domestic stock universe
+  mai:
+    description: Thailand mai domestic stock universe
+  SET_ex_DR:
+    description: Thailand domestic listed securities excluding DR/DRx/DW/ETF/warrants
+
+liquidity_filter:
+  min_avg_value_20d_thb: 5000000
+  min_trading_days_ratio_60d: 0.85
+
+exclude_security_types:
   - DR
   - DRx
   - DW
   - ETF
-  - warrant
+  - Warrant
 
-liquidity:
-  min_average_traded_value_20d: 0
+exclude_suspended: true

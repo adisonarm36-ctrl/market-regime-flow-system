@@ -1,0 +1,10 @@
+Ticker,Name,Country,Exchange,Universe,SecurityType,Sector,Industry,Currency,IsDR,IsDRx,IsETF,IsDW,IsWarrant,Suspended,IncludeInDomesticBreadth,Notes
+DEMO_TH_A,Demo Thailand Common A,Thailand,DEMO_EXCHANGE,SET50,Common Stock,Demo Industrials,Demo Machinery,THB,false,false,false,false,false,false,true,Fake/demo sample row only
+DEMO_TH_B,Demo Thailand Common B,Thailand,DEMO_EXCHANGE,SET100,Common Stock,Demo Technology,Demo Software,THB,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE,TRUE,Fake/demo sample row only
+DEMO_TH_C,Demo Thailand Common C,Thailand,DEMO_EXCHANGE,mai,Common Stock,Demo Consumer,Demo Retail,THB,0,0,0,0,0,0,1,Fake/demo sample row only
+DEMO_TH_DR,Demo Thailand DR,Thailand,DEMO_EXCHANGE,SET,DR,Demo Foreign Proxy,Demo DR,THB,yes,no,no,no,no,no,no,Fake/demo DR must be excluded from domestic breadth
+DEMO_TH_DRX,Demo Thailand DRx,Thailand,DEMO_EXCHANGE,SET,DRx,Demo Foreign Proxy,Demo DRx,THB,no,Y,no,no,no,no,no,Fake/demo DRx must be excluded from domestic breadth
+DEMO_TH_ETF,Demo Thailand ETF,Thailand,DEMO_EXCHANGE,SET,ETF,Demo Fund,Demo ETF,THB,no,no,Y,no,no,no,no,Fake/demo ETF must be excluded from domestic breadth
+DEMO_TH_DW,Demo Thailand DW,Thailand,DEMO_EXCHANGE,SET,DW,Demo Derivative,Demo DW,THB,no,no,no,Y,no,no,no,Fake/demo DW must be excluded from domestic breadth
+DEMO_TH_WARRANT,Demo Thailand Warrant,Thailand,DEMO_EXCHANGE,SET,Warrant,Demo Derivative,Demo Warrant,THB,no,no,no,no,Y,no,no,Fake/demo warrant must be excluded from domestic breadth
+DEMO_TH_SUSP,Demo Thailand Suspended,Thailand,DEMO_EXCHANGE,SET100,Common Stock,Demo Energy,Demo Utilities,THB,no,no,no,no,no,Y,no,Fake/demo suspended security must be excluded

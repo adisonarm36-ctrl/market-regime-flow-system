@@ -1,0 +1,10 @@
+Ticker,SecurityType,IsDomesticStock,IsDR,IsDRx,IsETF,IsDW,IsWarrant,Suspended,IncludeInDomesticBreadth,ExclusionReason
+DEMO_TH_A,Common Stock,true,false,false,false,false,false,false,true,
+DEMO_TH_B,Common Stock,true,false,false,false,false,false,false,true,
+DEMO_TH_C,Common Stock,true,false,false,false,false,false,false,true,
+DEMO_TH_DR,DR,false,true,false,false,false,false,false,false,DR excluded from domestic breadth
+DEMO_TH_DRX,DRx,false,false,true,false,false,false,false,false,DRx excluded from domestic breadth
+DEMO_TH_ETF,ETF,false,false,false,true,false,false,false,false,ETF excluded from domestic breadth
+DEMO_TH_DW,DW,false,false,false,false,true,false,false,false,DW excluded from domestic breadth
+DEMO_TH_WARRANT,Warrant,false,false,false,false,false,true,false,false,Warrant excluded from domestic breadth
+DEMO_TH_SUSP,Common Stock,true,false,false,false,false,false,true,false,Suspended security excluded

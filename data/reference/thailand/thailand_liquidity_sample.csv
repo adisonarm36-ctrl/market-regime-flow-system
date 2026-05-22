@@ -1,0 +1,6 @@
+Ticker,average_traded_value_20d,average_volume_20d,trading_days_ratio_60d,liquidity_bucket,Notes
+DEMO_TH_A,10000000,100000,1.00,High,Fake/demo liquidity only
+DEMO_TH_B,7500000,80000,0.95,Medium,Fake/demo liquidity only
+DEMO_TH_C,1200000,40000,0.70,Low,Fake/demo liquidity only
+DEMO_TH_DR,5000000,60000,0.90,Medium,Fake/demo DR liquidity only
+DEMO_TH_DRX,3000000,30000,0.80,Low,Fake/demo DRx liquidity only
