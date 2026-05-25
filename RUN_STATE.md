@@ -2,41 +2,36 @@
 
 ## Last Completed Work
 
-Phase 4: Thailand Universe and DR Reference Data.
+Phase 5A: DR fair value and execution quality workflow has been merged into `main`.
 
-The project is currently safe to continue from the existing codebase. CSV remains supported, Yahoo historical price loading is optional, and Thailand metadata, universe membership, security type flags, liquidity references, and DR/DRx mappings are local-reference workflows.
+The project is currently safe to continue from the existing codebase. CSV remains supported, Yahoo historical price loading is optional, and Thailand metadata, universe membership, security type flags, liquidity references, DR/DRx mappings, fair value inputs, FX-adjusted tracking, and execution-quality workflows are local-reference workflows.
 
 ## Current Test Result
 
-`76 passed`
+`86 passed` on 2026-05-25 with Python 3.14.2.
 
 ## Next Phase
 
-Phase 5: DR Fair Value, FX-Adjusted Tracking, and Local Liquidity Inputs
-
-Alternative: Phase 5: Backtest and Risk Throttle
+Phase 5B-1: Backtest Core Engine and Risk Throttle.
 
 ## Exact Next Prompt
 
 ```text
-Read AGENTS.md first.
+Read AGENTS.md, CODEX_WORKFLOW.md, RUN_STATE.md, PROJECT_STATUS.md, PHASE_PLAN.md, and TROUBLESHOOTING.md first.
 
-Implement Phase 5: DR Fair Value, FX-Adjusted Tracking, and Local Liquidity Inputs.
+Implement Phase 5B-1: Backtest Core Engine and Risk Throttle.
 
 Goal:
-Add local-file support for DR fair value, FX-adjusted tracking, spreads, and execution-quality inputs without live APIs or scraping.
+Add a reusable backtest core engine and risk throttle for research signals only.
 
 Tasks:
-- Add local fair value and FX input schemas.
-- Add local bid/ask spread input schemas.
-- Calculate FX-adjusted DR tracking correlation when local inputs exist.
-- Keep reference-only DR rankings clearly labeled as limited confidence when inputs are missing.
-- Add tests using fake/demo Thailand reference data only.
-- Update dashboard status tables and README.
+- Add signal-to-position simulation using configured research signals.
+- Calculate backtest metrics from adjusted close when available.
+- Add risk throttle rules such as max exposure, volatility filter, drawdown guard, and cash allocation.
+- Handle missing data by reporting and skipping affected layers.
+- Add focused pytest coverage using fake/demo data only.
 Constraints:
 - No invented real market data.
-- No scraping.
-- No API keys.
 - No buy/sell recommendations.
 - Keep outputs as research signals only.
 ```
@@ -44,9 +39,11 @@ Constraints:
 ## Handoff Notes
 
 - Read `AGENTS.md` before continuing.
-- Do not add live APIs in Phase 4.
+- Read `CODEX_WORKFLOW.md`, `PROJECT_STATUS.md`, `PHASE_PLAN.md`, and `TROUBLESHOOTING.md` before coding.
+- Do not add live APIs unless a later phase explicitly requires and configures them.
 - Do not present fake/demo data as real market data.
 - Preserve CSV fallback.
 - Preserve Yahoo as historical price-only source.
 - Keep DR/DRx separate from Thailand domestic breadth.
 - Bundled Thailand reference files are fake/demo samples only.
+- Use feature branches for new implementation work.
