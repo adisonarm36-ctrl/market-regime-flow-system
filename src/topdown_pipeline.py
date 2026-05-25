@@ -3,6 +3,8 @@ from __future__ import annotations
 import pandas as pd
 
 from .asset_rotation import aggregate_flow_by_asset_class
+from .backtest import BacktestConfig, run_signal_backtest
+from .backtest_integration import backtest_warnings_frame, build_pipeline_backtest_signals
 from .clustering import calculate_cluster_breadth, calculate_cluster_momentum, cluster_membership_table, hierarchical_clustering, rank_clusters
 from .correlation import static_correlation_matrix
 from .country_breadth import calculate_country_breadth
@@ -71,6 +73,9 @@ def run_topdown_pipeline(
     underlying_prices_df: pd.DataFrame | None = None,
     fx_rates_df: pd.DataFrame | None = None,
     benchmark_ticker: str | None = None,
+    backtest_enabled: bool = False,
+    backtest_config: BacktestConfig | None = None,
+    backtest_signal_df: pd.DataFrame | None = None,
 ) -> dict[str, pd.DataFrame]:
     """Run report-ready top-down research outputs from supplied CSV-derived data."""
     outputs: dict[str, pd.DataFrame] = {}
@@ -223,7 +228,47 @@ def run_topdown_pipeline(
     else:
         outputs["stock_ranking"] = pd.DataFrame()
 
+    _add_backtest_outputs(
+        outputs=outputs,
+        price_df=price_df,
+        dr_mapping_df=dr_mapping_df,
+        enabled=backtest_enabled,
+        config=backtest_config,
+        signal_df=backtest_signal_df,
+    )
+
     return outputs
+
+
+def _add_backtest_outputs(
+    outputs: dict[str, pd.DataFrame],
+    price_df: pd.DataFrame,
+    dr_mapping_df: pd.DataFrame | None,
+    enabled: bool,
+    config: BacktestConfig | None,
+    signal_df: pd.DataFrame | None,
+) -> None:
+    outputs["backtest_summary"] = pd.DataFrame()
+    outputs["backtest_portfolio"] = pd.DataFrame()
+    outputs["backtest_positions"] = pd.DataFrame()
+    outputs["backtest_instrument_metrics"] = pd.DataFrame()
+    outputs["backtest_warnings"] = pd.DataFrame()
+    if not enabled:
+        return
+
+    warnings: list[str] = []
+    if signal_df is None:
+        signal_df, warnings = build_pipeline_backtest_signals(
+            price_df=price_df,
+            stock_ranking_df=outputs.get("stock_ranking", pd.DataFrame()),
+            dr_mapping_df=dr_mapping_df,
+        )
+    result = run_signal_backtest(price_df=price_df, signal_df=signal_df, config=config)
+    outputs["backtest_summary"] = result.metrics
+    outputs["backtest_portfolio"] = result.portfolio
+    outputs["backtest_positions"] = result.positions
+    outputs["backtest_instrument_metrics"] = result.instrument_metrics
+    outputs["backtest_warnings"] = backtest_warnings_frame(warnings + result.warnings)
 
 
 def run_pipeline_from_config(config_path: str = "config/data_sources.yaml", adapter=None) -> dict[str, pd.DataFrame]:
