@@ -5,6 +5,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from src.backtest import BacktestConfig
 from src.config_validation import validate_metadata_schema
 from src.config_loader import load_yaml
 from src.data_adapters import get_data_adapter
@@ -50,6 +51,8 @@ def main() -> None:
         dr_mapping_upload = st.file_uploader("DR mapping CSV", type=["csv"])
         dr_ohlcv_upload = st.file_uploader("DR OHLCV CSV", type=["csv"])
         benchmark_ticker = st.text_input("Benchmark ticker", value="")
+        enable_backtest = st.checkbox("Enable research backtest assumptions", value=False)
+        backtest_config = _sidebar_backtest_config(enable_backtest)
 
     if data_mode == "Config source":
         config = load_yaml(Path("config") / "data_sources.yaml")
@@ -132,7 +135,7 @@ def main() -> None:
         st.warning("DR mapping is missing. DR execution quality will be skipped and reported as missing optional data.")
 
     if data_mode == "Config source":
-        outputs = _run_config_pipeline_once(config)
+        outputs = _run_config_pipeline_once(config, enable_backtest, backtest_config)
         _show_status_tables(outputs)
     else:
         outputs = run_topdown_pipeline(
@@ -146,6 +149,8 @@ def main() -> None:
             dr_price_df=dr_prices,
             dr_volume_df=dr_volume,
             benchmark_ticker=benchmark_ticker or None,
+            backtest_enabled=enable_backtest,
+            backtest_config=backtest_config,
         )
 
     pages = [
@@ -158,6 +163,7 @@ def main() -> None:
         "Stock Ranking",
         "DR Global Proxy",
         "Redundancy Report",
+        "Backtest",
         "Daily Report",
     ]
     page = st.sidebar.radio("Page", pages)
@@ -213,6 +219,8 @@ def main() -> None:
         _show_table("Duplicate DR Underlying Groups", outputs.get("dr_duplicate_underlying_report"))
     elif page == "Redundancy Report":
         _show_table("Redundant Instruments", outputs.get("redundancy_report"))
+    elif page == "Backtest":
+        _show_backtest_page(outputs)
     elif page == "Daily Report":
         report = build_daily_report(outputs)
         for title, text in report.items():
@@ -226,6 +234,39 @@ def _show_table(title: str, table: pd.DataFrame | None) -> None:
         st.warning("No data available for this layer. Missing data is skipped.")
         return
     st.dataframe(table, use_container_width=True)
+
+
+def build_backtest_dashboard_tables(outputs: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
+    """Build report-ready dashboard tables for backtest outputs."""
+    tables = {
+        "Backtest Assumption Summary": outputs.get("backtest_summary", pd.DataFrame()),
+        "Backtest Portfolio Path": outputs.get("backtest_portfolio", pd.DataFrame()),
+        "Backtest Positions": outputs.get("backtest_positions", pd.DataFrame()),
+        "Backtest Instrument Metrics": outputs.get("backtest_instrument_metrics", pd.DataFrame()),
+        "Backtest Warnings": outputs.get("backtest_warnings", pd.DataFrame()),
+    }
+    return {name: table for name, table in tables.items() if isinstance(table, pd.DataFrame) and not table.empty}
+
+
+def _show_backtest_page(outputs: dict[str, pd.DataFrame]) -> None:
+    st.info("Backtest outputs are research assumptions only. They are not financial advice, trading advice, or future-return guarantees.")
+    tables = build_backtest_dashboard_tables(outputs)
+    if not tables:
+        st.warning("No backtest data available. Enable research backtest assumptions and provide aligned price/signal data.")
+        return
+    for title, table in tables.items():
+        _show_table(title, table)
+
+
+def _sidebar_backtest_config(enabled: bool) -> BacktestConfig | None:
+    if not enabled:
+        return None
+    return BacktestConfig(
+        max_gross_exposure=st.sidebar.slider("Max gross exposure", min_value=0.0, max_value=1.0, value=1.0, step=0.05),
+        max_position_weight=st.sidebar.slider("Max position weight", min_value=0.01, max_value=1.0, value=0.25, step=0.01),
+        signal_threshold=st.sidebar.number_input("Signal threshold", min_value=0.0, value=0.0, step=1.0),
+        rebalance_lag=st.sidebar.number_input("Rebalance lag", min_value=0, value=1, step=1),
+    )
 
 
 def _show_status_tables(outputs: dict[str, pd.DataFrame]) -> None:
@@ -253,8 +294,8 @@ def _load_prices_once(config: dict) -> tuple[pd.DataFrame, list[str]]:
 
 
 @st.cache_data(show_spinner=False)
-def _run_config_pipeline_once(config: dict) -> dict[str, pd.DataFrame]:
-    return run_pipeline_from_config(adapter=get_data_adapter(config))
+def _run_config_pipeline_once(config: dict, backtest_enabled: bool, backtest_config: BacktestConfig | None) -> dict[str, pd.DataFrame]:
+    return run_pipeline_from_config(adapter=get_data_adapter(config), backtest_enabled=backtest_enabled, backtest_config=backtest_config)
 
 
 def _safe_adapter_load(loader, label: str) -> pd.DataFrame | None:

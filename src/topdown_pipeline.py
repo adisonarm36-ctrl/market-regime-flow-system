@@ -271,7 +271,12 @@ def _add_backtest_outputs(
     outputs["backtest_warnings"] = backtest_warnings_frame(warnings + result.warnings)
 
 
-def run_pipeline_from_config(config_path: str = "config/data_sources.yaml", adapter=None) -> dict[str, pd.DataFrame]:
+def run_pipeline_from_config(
+    config_path: str = "config/data_sources.yaml",
+    adapter=None,
+    backtest_enabled: bool = False,
+    backtest_config: BacktestConfig | None = None,
+) -> dict[str, pd.DataFrame]:
     """Run the top-down pipeline from configured data source and local reference data."""
     config = load_yaml(config_path)
     adapter = adapter or get_data_adapter(config)
@@ -359,6 +364,8 @@ def run_pipeline_from_config(config_path: str = "config/data_sources.yaml", adap
         fair_value_inputs_df=dr_fair_value_inputs,
         underlying_prices_df=underlying_prices,
         fx_rates_df=fx_rates,
+        backtest_enabled=backtest_enabled,
+        backtest_config=backtest_config,
     )
     outputs["warnings"] = pd.DataFrame({"warning": warnings})
     outputs["data_quality_report"] = summarize_reference_data_quality(price_df, metadata, dr_mapping)
