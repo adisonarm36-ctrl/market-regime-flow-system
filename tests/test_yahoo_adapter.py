@@ -179,6 +179,16 @@ def test_empty_yahoo_response_raises_clear_error(tmp_path):
         adapter.load_prices()
 
 
+def test_partial_yahoo_response_warns_with_user_friendly_message(tmp_path):
+    raw = _multi_ticker_frame().drop(columns="BBB", level=0)
+    adapter = YahooDataAdapter(["AAA", "BBB"], cache_dir=tmp_path, cache_format="csv", yfinance_module=FakeYFinance(raw))
+
+    result = adapter.load_prices()
+
+    assert set(result["Ticker"]) == {"AAA"}
+    assert any("Yahoo returned partial data" in warning for warning in adapter.warnings)
+
+
 def test_factory_returns_yahoo_adapter():
     adapter = get_data_adapter({"active_source": "yahoo", "source_settings": {"yahoo": {"tickers": ["AAA"]}}})
 

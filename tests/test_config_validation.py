@@ -1,11 +1,13 @@
 import pandas as pd
 
 from src.config_validation import (
+    validate_data_sources_config,
     validate_country_universe,
     validate_dr_underlyings,
     validate_metadata_schema,
     validate_sector_mapping,
     validate_thresholds,
+    validate_yahoo_source_config,
 )
 
 
@@ -42,3 +44,47 @@ def test_validate_dr_underlyings_missing_and_unavailable():
     warnings = validate_dr_underlyings(mapping, available_tickers={"DEMO_DR"})
 
     assert "DR underlying not found in prices" in warnings[0]
+
+
+def test_validate_yahoo_source_config_missing_and_invalid_values():
+    warnings = validate_yahoo_source_config(
+        {
+            "tickers": ["", " "],
+            "interval": "1m",
+            "cache_format": "json",
+            "cache_dir": "",
+            "cache_ttl_hours": -1,
+            "fallback_to_cache": "yes",
+            "start": "2026-01-02",
+            "end": "2026-01-01",
+            "reference_data": {},
+        }
+    )
+
+    assert "Yahoo config missing tickers" in warnings[0]
+    assert any("unsupported interval" in warning for warning in warnings)
+    assert any("unsupported cache_format" in warning for warning in warnings)
+    assert any("end date must be after start date" in warning for warning in warnings)
+
+
+def test_validate_data_sources_config_checks_active_source_and_yahoo_settings():
+    warnings = validate_data_sources_config(
+        {
+            "active_source": "missing",
+            "source_settings": {
+                "yahoo": {
+                    "tickers": ["AAA"],
+                    "period": "2y",
+                    "interval": "1d",
+                    "cache_dir": "data/cache/yahoo",
+                    "cache_format": "csv",
+                    "cache_ttl_hours": 8,
+                    "fallback_to_cache": True,
+                    "reference_data": {},
+                }
+            },
+        }
+    )
+
+    assert any("active_source not found" in warning for warning in warnings)
+    assert any("missing local metadata reference path" in warning for warning in warnings)

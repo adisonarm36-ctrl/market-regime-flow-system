@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pandas as pd
 
 
 KNOWN_SECURITY_TYPES = {"Stock", "DR", "DRx", "DW", "ETF", "warrant", "Warrant"}
+SUPPORTED_YAHOO_INTERVALS = {"1d", "5d", "1wk", "1mo", "3mo"}
+SUPPORTED_YAHOO_CACHE_FORMATS = {"csv", "parquet"}
 REQUIRED_METADATA_COLUMNS = [
     "Ticker",
     "SecurityType",
@@ -73,3 +77,83 @@ def validate_thresholds(threshold_config: dict, section: str, required_keys: lis
         return [f"Missing thresholds section: {section}"]
     missing = [key for key in required_keys if key not in values]
     return [f"Missing threshold keys for {section}: {', '.join(missing)}"] if missing else []
+
+
+def validate_yahoo_source_config(yahoo_config: dict) -> list[str]:
+    """Validate Yahoo historical source settings without making network calls."""
+    warnings: list[str] = []
+    tickers = yahoo_config.get("tickers")
+    if not isinstance(tickers, list) or not any(str(ticker).strip() for ticker in tickers):
+        warnings.append("Yahoo config missing tickers: add at least one historical Yahoo ticker")
+    elif any(not str(ticker).strip() for ticker in tickers):
+        warnings.append("Yahoo config contains blank ticker entries")
+
+    interval = yahoo_config.get("interval", "1d")
+    if interval not in SUPPORTED_YAHOO_INTERVALS:
+        warnings.append(f"Yahoo config unsupported interval: {interval}")
+
+    cache_format = yahoo_config.get("cache_format", "parquet")
+    if cache_format not in SUPPORTED_YAHOO_CACHE_FORMATS:
+        warnings.append(f"Yahoo config unsupported cache_format: {cache_format}")
+
+    cache_dir = yahoo_config.get("cache_dir")
+    if not cache_dir or not str(cache_dir).strip():
+        warnings.append("Yahoo config missing cache_dir")
+
+    try:
+        cache_ttl_hours = float(yahoo_config.get("cache_ttl_hours", 8))
+        if cache_ttl_hours < 0:
+            warnings.append("Yahoo config cache_ttl_hours must be non-negative")
+    except (TypeError, ValueError):
+        warnings.append("Yahoo config cache_ttl_hours must be numeric")
+
+    if not isinstance(yahoo_config.get("fallback_to_cache", True), bool):
+        warnings.append("Yahoo config fallback_to_cache must be true or false")
+
+    period = yahoo_config.get("period")
+    start = yahoo_config.get("start")
+    end = yahoo_config.get("end")
+    if not period and not start:
+        warnings.append("Yahoo config should include period or start date")
+    if period and start:
+        warnings.append("Yahoo config has both period and start; start/end will override period")
+    if start and end:
+        start_date = pd.to_datetime(start, errors="coerce")
+        end_date = pd.to_datetime(end, errors="coerce")
+        if pd.isna(start_date):
+            warnings.append(f"Yahoo config invalid start date: {start}")
+        if pd.isna(end_date):
+            warnings.append(f"Yahoo config invalid end date: {end}")
+        if pd.notna(start_date) and pd.notna(end_date) and end_date <= start_date:
+            warnings.append("Yahoo config end date must be after start date")
+
+    reference_data = yahoo_config.get("reference_data") or {}
+    for key, label in [
+        ("metadata_path", "metadata"),
+        ("sector_map_path", "sector map"),
+        ("country_map_path", "country map"),
+        ("dr_mapping_path", "DR mapping"),
+    ]:
+        value = reference_data.get(key)
+        if not value:
+            warnings.append(f"Yahoo config missing local {label} reference path")
+        elif not Path(value).exists():
+            warnings.append(f"Yahoo config local {label} reference path not found: {value}")
+    return warnings
+
+
+def validate_data_sources_config(config: dict) -> list[str]:
+    """Validate data source config with Yahoo-first checks when present."""
+    warnings: list[str] = []
+    source_settings = config.get("source_settings")
+    if not isinstance(source_settings, dict):
+        return ["Missing source_settings in data_sources config"]
+    active_source = config.get("active_source")
+    if active_source not in source_settings:
+        warnings.append(f"active_source not found in source_settings: {active_source}")
+    yahoo_settings = source_settings.get("yahoo")
+    if isinstance(yahoo_settings, dict):
+        warnings.extend(validate_yahoo_source_config(yahoo_settings))
+    else:
+        warnings.append("Yahoo source settings missing")
+    return warnings

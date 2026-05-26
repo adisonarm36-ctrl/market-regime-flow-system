@@ -1,4 +1,6 @@
-active_source: csv
+# Yahoo-first historical workflow. Set active_source to csv only when using
+# local CSV/manual fallback data.
+active_source: yahoo
 source_settings:
   csv:
     price_path:
@@ -17,6 +19,9 @@ source_settings:
       fx_rates_path: data/reference/thailand/dr_quality/fx_rates_sample.csv
       underlying_prices_path: data/reference/thailand/dr_quality/underlying_prices_sample.csv
   yahoo:
+    # Yahoo/yfinance is for historical OHLCV prices only.
+    # It is not realtime and is not a source for metadata, Thailand security
+    # type, DR/DRx mapping, sector/country maps, liquidity, or fair value.
     tickers:
       - SPY
       - QQQ
