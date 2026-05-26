@@ -9,6 +9,8 @@ from src.dashboard import (
     apply_yahoo_runtime_options,
     apply_yahoo_ticker_universe,
     dashboard_source_options,
+    disable_yahoo_force_refresh,
+    yahoo_cache_token,
     yahoo_cache_status,
 )
 from src.data_adapters.yahoo_adapter import YahooDataAdapter
@@ -34,6 +36,7 @@ def test_yahoo_cache_status_reports_missing_cache(tmp_path):
     assert status["cache_exists"] is False
     assert status["cache_path"].endswith(".csv")
     assert status["cache_last_updated"] == ""
+    assert status["cache_first_enabled"] is True
 
 
 def test_yahoo_cache_status_reports_last_updated(tmp_path):
@@ -57,15 +60,19 @@ def test_yahoo_cache_status_reports_last_updated(tmp_path):
 
     assert status["cache_exists"] is True
     assert status["cache_last_updated"]
+    assert status["cache_is_fresh"] is True
+    assert yahoo_cache_token(adapter)
 
 
 def test_apply_yahoo_runtime_options_does_not_mutate_config():
     config = {"source_settings": {"yahoo": {"fallback_to_cache": True}}}
 
-    result = apply_yahoo_runtime_options(config, fallback_to_cache=False)
+    result = apply_yahoo_runtime_options(config, fallback_to_cache=False, force_refresh=True)
 
     assert result["source_settings"]["yahoo"]["fallback_to_cache"] is False
+    assert result["source_settings"]["yahoo"]["force_refresh"] is True
     assert config["source_settings"]["yahoo"]["fallback_to_cache"] is True
+    assert "force_refresh" not in config["source_settings"]["yahoo"]
 
 
 def test_apply_yahoo_ticker_universe_does_not_mutate_config():
@@ -75,3 +82,12 @@ def test_apply_yahoo_ticker_universe_does_not_mutate_config():
 
     assert result["source_settings"]["yahoo"]["tickers"] == ["NEW"]
     assert config["source_settings"]["yahoo"]["tickers"] == ["OLD"]
+
+
+def test_disable_yahoo_force_refresh_does_not_mutate_config():
+    config = {"source_settings": {"yahoo": {"fallback_to_cache": True, "force_refresh": True}}}
+
+    result = disable_yahoo_force_refresh(config)
+
+    assert result["source_settings"]["yahoo"]["force_refresh"] is False
+    assert config["source_settings"]["yahoo"]["force_refresh"] is True
