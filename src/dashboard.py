@@ -15,6 +15,8 @@ from src.data_adapters.yahoo_adapter import YahooDataAdapter
 from src.data_loader import pivot_prices, pivot_volume
 from src.report_generator import build_daily_report
 from src.topdown_pipeline import run_pipeline_from_config, run_topdown_pipeline
+from src.thailand_reference import load_thailand_liquidity, load_thailand_universe
+from src.yahoo_universe import build_thailand_domestic_yahoo_ticker_universe
 
 
 SAMPLE_DIR = Path(__file__).resolve().parents[1] / "data" / "sample"
@@ -66,6 +68,13 @@ def apply_yahoo_runtime_options(config: dict, fallback_to_cache: bool) -> dict:
     return result
 
 
+def apply_yahoo_ticker_universe(config: dict, yahoo_tickers: list[str]) -> dict:
+    """Apply a locally generated Yahoo ticker universe without mutating config."""
+    result = deepcopy(config)
+    result.setdefault("source_settings", {}).setdefault("yahoo", {})["tickers"] = list(yahoo_tickers)
+    return result
+
+
 def main() -> None:
     """Run the Streamlit research dashboard."""
     st.set_page_config(page_title="Market Regime Flow System", layout="wide")
@@ -103,6 +112,8 @@ def main() -> None:
         enable_backtest = st.checkbox("Enable research backtest assumptions", value=False)
         backtest_config = _sidebar_backtest_config(enable_backtest)
         yahoo_fallback_to_cache = True
+        yahoo_universe_source = "Configured Yahoo tickers"
+        selected_thailand_universe = "SET ex-DR"
 
     if data_mode == CONFIG_SOURCE_MODE:
         if config is None:
@@ -112,8 +123,16 @@ def main() -> None:
         adapter = get_data_adapter(config)
         if isinstance(adapter, YahooDataAdapter):
             st.sidebar.info("Yahoo mode uses historical yfinance data only. It is not realtime.")
+            yahoo_universe_source = st.sidebar.selectbox(
+                "Yahoo ticker universe",
+                ["Configured Yahoo tickers", "Local Thailand domestic universe"],
+            )
+            if yahoo_universe_source == "Local Thailand domestic universe":
+                selected_thailand_universe = st.sidebar.selectbox("Thailand universe", ["SET ex-DR", "SET50", "SET100", "mai"])
             yahoo_fallback_to_cache = st.sidebar.checkbox("Fallback to stale cache if Yahoo fetch fails", value=adapter.fallback_to_cache)
             runtime_config = apply_yahoo_runtime_options(config, fallback_to_cache=yahoo_fallback_to_cache)
+            if yahoo_universe_source == "Local Thailand domestic universe":
+                runtime_config = _apply_local_thailand_yahoo_universe(runtime_config, selected_thailand_universe)
             adapter = get_data_adapter(runtime_config)
             st.sidebar.write(
                 {
@@ -349,6 +368,34 @@ def _load_dashboard_config() -> dict | None:
         return load_yaml(Path("config") / "data_sources.yaml")
     except Exception:
         return None
+
+
+def _apply_local_thailand_yahoo_universe(config: dict, universe: str) -> dict:
+    yahoo_settings = config.get("source_settings", {}).get("yahoo", {})
+    reference_data = yahoo_settings.get("reference_data") or {}
+    thailand_universe_path = reference_data.get("thailand_universe_path")
+    if not thailand_universe_path:
+        st.sidebar.warning("Thailand universe path missing; using configured Yahoo tickers.")
+        return config
+    try:
+        thailand_metadata = load_thailand_universe(thailand_universe_path)
+        liquidity_path = reference_data.get("thailand_liquidity_path")
+        liquidity = load_thailand_liquidity(liquidity_path) if liquidity_path else None
+        selection = build_thailand_domestic_yahoo_ticker_universe(
+            thailand_metadata_df=thailand_metadata,
+            liquidity_df=liquidity,
+            universe=universe,
+        )
+    except Exception as exc:
+        st.sidebar.warning(f"Could not build local Thailand Yahoo universe: {exc}")
+        return config
+    for warning in selection.warnings:
+        st.sidebar.warning(warning)
+    if not selection.yahoo_tickers:
+        st.sidebar.warning("No local Yahoo tickers generated; using configured Yahoo tickers.")
+        return config
+    st.sidebar.success(f"Using {len(selection.yahoo_tickers)} locally configured Yahoo tickers from {universe}.")
+    return apply_yahoo_ticker_universe(config, selection.yahoo_tickers)
 
 
 @st.cache_data(show_spinner=False)

@@ -7,6 +7,7 @@ from src.dashboard import (
     MANUAL_FALLBACK_MODE,
     active_source_label,
     apply_yahoo_runtime_options,
+    apply_yahoo_ticker_universe,
     dashboard_source_options,
     yahoo_cache_status,
 )
@@ -65,3 +66,12 @@ def test_apply_yahoo_runtime_options_does_not_mutate_config():
 
     assert result["source_settings"]["yahoo"]["fallback_to_cache"] is False
     assert config["source_settings"]["yahoo"]["fallback_to_cache"] is True
+
+
+def test_apply_yahoo_ticker_universe_does_not_mutate_config():
+    config = {"source_settings": {"yahoo": {"tickers": ["OLD"]}}}
+
+    result = apply_yahoo_ticker_universe(config, ["NEW"])
+
+    assert result["source_settings"]["yahoo"]["tickers"] == ["NEW"]
+    assert config["source_settings"]["yahoo"]["tickers"] == ["OLD"]
