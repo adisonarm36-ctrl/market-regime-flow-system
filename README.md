@@ -227,9 +227,9 @@ prices = adapter.load_prices()
 
 ## Using Yahoo Historical Source
 
-Yahoo mode is optional and uses `yfinance` for delayed historical data. It is not realtime and does not use API keys, streaming, or WebSockets.
+Yahoo mode is the preferred dashboard path for historical OHLCV prices and uses `yfinance` through the configured `YahooDataAdapter`. It is not realtime and does not use API keys, streaming, broker connections, or WebSockets.
 
-CSV remains the default. To enable Yahoo, edit `config/data_sources.yaml`:
+Manual CSV upload remains available in the dashboard as an Advanced/Fallback workflow for audited local files, demos, or cases where Yahoo coverage/cache is unavailable. To use Yahoo, edit `config/data_sources.yaml`:
 
 ```yaml
 active_source: yahoo
@@ -269,7 +269,7 @@ Install dependencies:
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-Then run the dashboard and choose `Config source` in the sidebar:
+Then run the dashboard. `Config source` is the default sidebar workflow and displays `active_source`, Yahoo historical/not-realtime status, cache path, cache availability, and cache last-updated timestamp when available.
 
 ```powershell
 .\.venv\Scripts\streamlit.exe run app.py

@@ -17,6 +17,8 @@ from src.topdown_pipeline import run_pipeline_from_config, run_topdown_pipeline
 
 
 SAMPLE_DIR = Path(__file__).resolve().parents[1] / "data" / "sample"
+CONFIG_SOURCE_MODE = "Config source"
+MANUAL_FALLBACK_MODE = "Advanced / fallback manual upload"
 
 
 def _read_csv_upload(uploaded_file) -> pd.DataFrame | None:
@@ -28,37 +30,74 @@ def _read_csv_upload(uploaded_file) -> pd.DataFrame | None:
     return df
 
 
+def dashboard_source_options() -> list[str]:
+    """Return dashboard source choices with config/Yahoo first."""
+    return [CONFIG_SOURCE_MODE, MANUAL_FALLBACK_MODE]
+
+
+def active_source_label(config: dict | None) -> str:
+    """Return a user-facing active source label from data_sources.yaml."""
+    if not config:
+        return "active_source: unavailable"
+    return f"active_source: {config.get('active_source', 'csv')}"
+
+
+def yahoo_cache_status(adapter: YahooDataAdapter) -> dict[str, str | bool]:
+    """Return report-ready Yahoo cache status without loading data."""
+    cache_path = adapter.cache_path()
+    exists = cache_path.exists()
+    status: dict[str, str | bool] = {
+        "cache_path": str(cache_path),
+        "cache_exists": exists,
+        "cache_last_updated": "",
+    }
+    if exists:
+        modified = pd.Timestamp.fromtimestamp(cache_path.stat().st_mtime)
+        status["cache_last_updated"] = modified.strftime("%Y-%m-%d %H:%M:%S")
+    return status
+
+
 def main() -> None:
     """Run the Streamlit research dashboard."""
     st.set_page_config(page_title="Market Regime Flow System", layout="wide")
     st.title("Market Regime Flow System")
     st.caption("Research signals only. No financial advice or guaranteed buy/sell recommendations.")
     st.info("Use verified CSV data for research. Bundled sample data is fake/demo data for smoke testing only.")
+    config = _load_dashboard_config()
 
     with st.sidebar:
-        st.header("CSV Inputs")
-        data_mode = st.radio("Data mode", ["Manual upload / sample", "Config source"], index=0)
-        use_sample_data = st.checkbox("Use bundled fake/demo sample data", value=False)
-        st.markdown(
-            "Required OHLCV columns: `Date,Ticker,Open,High,Low,Close,Volume`. "
-            "Optional: `Adjusted Close`. Metadata sample columns are documented in README."
-        )
-        ohlcv_upload = st.file_uploader("OHLCV CSV", type=["csv"])
-        metadata_upload = st.file_uploader("Metadata CSV", type=["csv"])
-        country_upload = st.file_uploader("Country map CSV", type=["csv"])
-        asset_upload = st.file_uploader("Asset map CSV", type=["csv"])
-        thailand_upload = st.file_uploader("Thailand metadata CSV", type=["csv"])
-        dr_mapping_upload = st.file_uploader("DR mapping CSV", type=["csv"])
-        dr_ohlcv_upload = st.file_uploader("DR OHLCV CSV", type=["csv"])
+        st.header("Data Source")
+        st.caption("Default path: configured historical source. Manual CSV upload is an advanced fallback.")
+        st.write(active_source_label(config))
+        data_mode = st.radio("Data mode", dashboard_source_options(), index=0)
+        use_sample_data = False
+        ohlcv_upload = metadata_upload = country_upload = asset_upload = None
+        thailand_upload = dr_mapping_upload = dr_ohlcv_upload = None
+        if data_mode == MANUAL_FALLBACK_MODE:
+            with st.expander("Advanced / fallback manual upload", expanded=True):
+                use_sample_data = st.checkbox("Use bundled fake/demo sample data", value=False)
+                st.markdown(
+                    "Required OHLCV columns: `Date,Ticker,Open,High,Low,Close,Volume`. "
+                    "Optional: `Adjusted Close`. Metadata sample columns are documented in README."
+                )
+                ohlcv_upload = st.file_uploader("OHLCV CSV", type=["csv"])
+                metadata_upload = st.file_uploader("Metadata CSV", type=["csv"])
+                country_upload = st.file_uploader("Country map CSV", type=["csv"])
+                asset_upload = st.file_uploader("Asset map CSV", type=["csv"])
+                thailand_upload = st.file_uploader("Thailand metadata CSV", type=["csv"])
+                dr_mapping_upload = st.file_uploader("DR mapping CSV", type=["csv"])
+                dr_ohlcv_upload = st.file_uploader("DR OHLCV CSV", type=["csv"])
         benchmark_ticker = st.text_input("Benchmark ticker", value="")
         enable_backtest = st.checkbox("Enable research backtest assumptions", value=False)
         backtest_config = _sidebar_backtest_config(enable_backtest)
 
-    if data_mode == "Config source":
-        config = load_yaml(Path("config") / "data_sources.yaml")
+    if data_mode == CONFIG_SOURCE_MODE:
+        if config is None:
+            st.error("Could not load config/data_sources.yaml. Use Advanced / fallback manual upload if needed.")
+            return
         adapter = get_data_adapter(config)
         if isinstance(adapter, YahooDataAdapter):
-            st.sidebar.info("Yahoo mode uses delayed/historical yfinance data only. It is not realtime.")
+            st.sidebar.info("Yahoo mode uses historical yfinance data only. It is not realtime.")
             st.sidebar.write(
                 {
                     "tickers": adapter.tickers,
@@ -68,10 +107,11 @@ def main() -> None:
                     "cache_ttl_hours": adapter.cache_ttl_hours,
                 }
             )
-            cache_path = adapter.cache_path()
-            st.sidebar.write(f"Cache path: `{cache_path}`")
-            if cache_path.exists():
+            cache_status = yahoo_cache_status(adapter)
+            st.sidebar.write(f"Cache path: `{cache_status['cache_path']}`")
+            if cache_status["cache_exists"]:
                 st.sidebar.success("Yahoo cache file is available.")
+                st.sidebar.write(f"Cache last updated: `{cache_status['cache_last_updated']}`")
             else:
                 st.sidebar.warning("Yahoo cache file is not available yet.")
             if st.sidebar.checkbox("Use cached data if available", value=True):
@@ -134,7 +174,7 @@ def main() -> None:
     if dr_mapping is None:
         st.warning("DR mapping is missing. DR execution quality will be skipped and reported as missing optional data.")
 
-    if data_mode == "Config source":
+    if data_mode == CONFIG_SOURCE_MODE:
         outputs = _run_config_pipeline_once(config, enable_backtest, backtest_config)
         _show_status_tables(outputs)
     else:
@@ -284,6 +324,13 @@ def _show_status_tables(outputs: dict[str, pd.DataFrame]) -> None:
     if warnings is not None and not warnings.empty:
         for warning in warnings["warning"].dropna():
             st.warning(warning)
+
+
+def _load_dashboard_config() -> dict | None:
+    try:
+        return load_yaml(Path("config") / "data_sources.yaml")
+    except Exception:
+        return None
 
 
 @st.cache_data(show_spinner=False)
