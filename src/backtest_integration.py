@@ -53,6 +53,44 @@ def backtest_warnings_frame(warnings: list[str]) -> pd.DataFrame:
     return pd.DataFrame({"warning": warnings})
 
 
+def build_backtest_data_coverage_warnings(
+    price_df: pd.DataFrame,
+    signal_df: pd.DataFrame,
+    price_source_label: str = "historical price data",
+) -> list[str]:
+    """Return report-ready backtest data coverage warnings and assumptions."""
+    warnings = [
+        f"backtest source: {price_source_label}; historical research assumptions only, not financial advice",
+    ]
+    if price_df.empty:
+        return warnings + ["backtest coverage warning: missing historical price data"]
+    if signal_df.empty:
+        return warnings + ["backtest coverage warning: missing backtest signal data"]
+
+    common_dates = price_df.index.intersection(signal_df.index)
+    common_tickers = price_df.columns.intersection(signal_df.columns)
+    warnings.append(
+        "backtest coverage: "
+        f"price_dates={len(price_df.index)}, signal_dates={len(signal_df.index)}, "
+        f"common_dates={len(common_dates)}, common_tickers={len(common_tickers)}"
+    )
+
+    if len(common_dates) == 0:
+        warnings.append("backtest coverage warning: no overlapping price and signal dates")
+    if len(common_tickers) == 0:
+        warnings.append("backtest coverage warning: no overlapping price and signal tickers")
+
+    missing_price_tickers = sorted(set(signal_df.columns) - set(price_df.columns))
+    if missing_price_tickers:
+        warnings.append(f"backtest coverage warning: signal tickers missing price data: {', '.join(missing_price_tickers)}")
+
+    missing_signal_tickers = sorted(set(price_df.columns) - set(signal_df.columns))
+    if missing_signal_tickers:
+        warnings.append(f"backtest coverage warning: price tickers without signal data: {', '.join(missing_signal_tickers)}")
+
+    return warnings
+
+
 def _underlying_map(dr_mapping_df: pd.DataFrame | None) -> dict[str, str]:
     if dr_mapping_df is None or dr_mapping_df.empty:
         return {}
