@@ -6,6 +6,7 @@ from src.dashboard import (
     CONFIG_SOURCE_MODE,
     MANUAL_FALLBACK_MODE,
     active_source_label,
+    apply_yahoo_runtime_options,
     dashboard_source_options,
     yahoo_cache_status,
 )
@@ -55,3 +56,12 @@ def test_yahoo_cache_status_reports_last_updated(tmp_path):
 
     assert status["cache_exists"] is True
     assert status["cache_last_updated"]
+
+
+def test_apply_yahoo_runtime_options_does_not_mutate_config():
+    config = {"source_settings": {"yahoo": {"fallback_to_cache": True}}}
+
+    result = apply_yahoo_runtime_options(config, fallback_to_cache=False)
+
+    assert result["source_settings"]["yahoo"]["fallback_to_cache"] is False
+    assert config["source_settings"]["yahoo"]["fallback_to_cache"] is True

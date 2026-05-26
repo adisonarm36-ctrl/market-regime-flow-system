@@ -12,23 +12,23 @@ The project is currently safe to continue from the existing codebase. CSV remain
 
 ## Next Phase
 
-Phase 6B: Yahoo-first Config Workflow.
+Phase 6C: Universe/Ticker Management.
 
 ## Exact Next Prompt
 
 ```text
 Read AGENTS.md, CODEX_WORKFLOW.md, RUN_STATE.md, PROJECT_STATUS.md, PHASE_PLAN.md, and TROUBLESHOOTING.md first.
 
-Implement Phase 6B: Yahoo-first Config Workflow.
+Implement Phase 6C: Universe/Ticker Management.
 
 Goal:
-Make the Yahoo-first config workflow clearer and safer without using realtime data, scraping, API keys, or network calls in tests.
+Add local reference-driven universe selection that can generate Yahoo ticker lists where local Yahoo ticker fields are configured.
 
 Tasks:
-- Ensure config/data_sources.yaml has a clear yahoo example.
-- Add helper validation for Yahoo ticker list, period/start/end, interval, and cache settings.
-- Add user-friendly warnings for missing tickers or partial Yahoo data.
-- Add dashboard controls for refresh/cache behavior without source-code constants.
+- Add local reference-driven ticker universe selection.
+- Allow selected universe to generate a Yahoo ticker list where possible.
+- Warn when Yahoo ticker format is missing or not configured.
+- Preserve Thailand domestic breadth exclusions.
 - Add tests using mocks/fake data only.
 Constraints:
 - No invented real market data.
@@ -48,3 +48,4 @@ Constraints:
 - Bundled Thailand reference files are fake/demo samples only.
 - Use feature branches for new implementation work.
 - Yahoo historical data is price-only; local reference files remain required for metadata, Thailand universe, DR/DRx mapping, security type, sector/country maps, and local DR quality data.
+- Do not invent Yahoo ticker mappings.

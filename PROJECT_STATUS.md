@@ -13,6 +13,7 @@
 - Yahoo historical adapter works with cache-first mode.
 - Hybrid Yahoo + local reference data workflow works.
 - Dashboard source UX now defaults to the configured source path, with manual upload kept as an Advanced/Fallback workflow.
+- Yahoo-first config workflow now has clearer config defaults, validation helpers, partial-data warnings, and dashboard cache fallback controls.
 - Thailand reference schemas, domestic breadth eligibility, and DR/DRx mapping reports work with local files.
 - DR fair value and execution-quality workflow is merged into `main`.
 
@@ -54,7 +55,7 @@
 - DR/DRx mapping needs verified local reference data for production research.
 - Backtest and risk throttle are not implemented yet.
 - Dashboard and report export for backtest results are not implemented yet.
-- Yahoo-first config validation, universe/ticker management, refresh controls, and Yahoo-fed backtest workflow are not fully implemented yet.
+- Yahoo-first universe/ticker management, refresh controls, and Yahoo-fed backtest workflow are not fully implemented yet.
 
 ## Next Phase
 

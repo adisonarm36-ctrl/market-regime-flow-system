@@ -269,7 +269,9 @@ Install dependencies:
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-Then run the dashboard. `Config source` is the default sidebar workflow and displays `active_source`, Yahoo historical/not-realtime status, cache path, cache availability, and cache last-updated timestamp when available.
+Then run the dashboard. `Config source` is the default sidebar workflow and displays `active_source`, Yahoo historical/not-realtime status, cache path, cache availability, cache last-updated timestamp when available, and cache fallback behavior.
+
+The dashboard validates Yahoo config settings before loading data and reports missing tickers, unsupported intervals/cache formats, invalid date settings, and missing local reference paths. Tests use mocks/fake data and do not call Yahoo.
 
 ```powershell
 .\.venv\Scripts\streamlit.exe run app.py

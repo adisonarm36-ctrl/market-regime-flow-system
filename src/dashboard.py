@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
 from src.backtest import BacktestConfig
-from src.config_validation import validate_metadata_schema
+from src.config_validation import validate_data_sources_config, validate_metadata_schema
 from src.config_loader import load_yaml
 from src.data_adapters import get_data_adapter
 from src.data_adapters.csv_adapter import CsvDataAdapter
@@ -57,6 +58,14 @@ def yahoo_cache_status(adapter: YahooDataAdapter) -> dict[str, str | bool]:
     return status
 
 
+def apply_yahoo_runtime_options(config: dict, fallback_to_cache: bool) -> dict:
+    """Apply dashboard Yahoo runtime options without mutating loaded config."""
+    result = deepcopy(config)
+    yahoo_settings = result.setdefault("source_settings", {}).setdefault("yahoo", {})
+    yahoo_settings["fallback_to_cache"] = bool(fallback_to_cache)
+    return result
+
+
 def main() -> None:
     """Run the Streamlit research dashboard."""
     st.set_page_config(page_title="Market Regime Flow System", layout="wide")
@@ -69,6 +78,9 @@ def main() -> None:
         st.header("Data Source")
         st.caption("Default path: configured historical source. Manual CSV upload is an advanced fallback.")
         st.write(active_source_label(config))
+        if config is not None:
+            for warning in validate_data_sources_config(config):
+                st.warning(warning)
         data_mode = st.radio("Data mode", dashboard_source_options(), index=0)
         use_sample_data = False
         ohlcv_upload = metadata_upload = country_upload = asset_upload = None
@@ -90,21 +102,29 @@ def main() -> None:
         benchmark_ticker = st.text_input("Benchmark ticker", value="")
         enable_backtest = st.checkbox("Enable research backtest assumptions", value=False)
         backtest_config = _sidebar_backtest_config(enable_backtest)
+        yahoo_fallback_to_cache = True
 
     if data_mode == CONFIG_SOURCE_MODE:
         if config is None:
             st.error("Could not load config/data_sources.yaml. Use Advanced / fallback manual upload if needed.")
             return
+        runtime_config = config
         adapter = get_data_adapter(config)
         if isinstance(adapter, YahooDataAdapter):
             st.sidebar.info("Yahoo mode uses historical yfinance data only. It is not realtime.")
+            yahoo_fallback_to_cache = st.sidebar.checkbox("Fallback to stale cache if Yahoo fetch fails", value=adapter.fallback_to_cache)
+            runtime_config = apply_yahoo_runtime_options(config, fallback_to_cache=yahoo_fallback_to_cache)
+            adapter = get_data_adapter(runtime_config)
             st.sidebar.write(
                 {
                     "tickers": adapter.tickers,
                     "period": adapter.period,
+                    "start": adapter.start,
+                    "end": adapter.end,
                     "interval": adapter.interval,
                     "cache_dir": str(adapter.cache_dir),
                     "cache_ttl_hours": adapter.cache_ttl_hours,
+                    "fallback_to_cache": adapter.fallback_to_cache,
                 }
             )
             cache_status = yahoo_cache_status(adapter)
@@ -114,10 +134,8 @@ def main() -> None:
                 st.sidebar.write(f"Cache last updated: `{cache_status['cache_last_updated']}`")
             else:
                 st.sidebar.warning("Yahoo cache file is not available yet.")
-            if st.sidebar.checkbox("Use cached data if available", value=True):
-                adapter.fallback_to_cache = True
         try:
-            ohlcv, adapter_warnings = _load_prices_once(config)
+            ohlcv, adapter_warnings = _load_prices_once(runtime_config)
         except Exception as exc:
             st.error(f"Could not load configured data source: {exc}")
             return
@@ -175,7 +193,7 @@ def main() -> None:
         st.warning("DR mapping is missing. DR execution quality will be skipped and reported as missing optional data.")
 
     if data_mode == CONFIG_SOURCE_MODE:
-        outputs = _run_config_pipeline_once(config, enable_backtest, backtest_config)
+        outputs = _run_config_pipeline_once(runtime_config, enable_backtest, backtest_config)
         _show_status_tables(outputs)
     else:
         outputs = run_topdown_pipeline(

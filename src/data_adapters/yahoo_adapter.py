@@ -179,7 +179,7 @@ class YahooDataAdapter(DataAdapter):
                 try:
                     ticker_df = raw[ticker] if ticker_first else raw.xs(ticker, axis=1, level=1)
                 except KeyError:
-                    self.warnings.append(f"missing ticker from Yahoo download: {ticker}")
+                    self.warnings.append(f"Yahoo returned partial data; missing ticker: {ticker}")
                     continue
                 frames.append(self._normalize_single_ticker(ticker_df, ticker))
         else:
@@ -197,7 +197,7 @@ class YahooDataAdapter(DataAdapter):
         present = set(result["Ticker"].unique())
         missing = sorted(set(self.tickers) - present)
         if missing:
-            self.warnings.append(f"partial data; missing tickers: {', '.join(missing)}")
+            self.warnings.append(f"Yahoo returned partial data; missing tickers: {', '.join(missing)}")
         return result
 
     def _normalize_single_ticker(self, ticker_df: pd.DataFrame, ticker: str) -> pd.DataFrame:
