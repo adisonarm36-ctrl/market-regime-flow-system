@@ -4,7 +4,7 @@ import pandas as pd
 
 from .asset_rotation import aggregate_flow_by_asset_class
 from .backtest import BacktestConfig, run_signal_backtest
-from .backtest_integration import backtest_warnings_frame, build_pipeline_backtest_signals
+from .backtest_integration import backtest_warnings_frame, build_backtest_data_coverage_warnings, build_pipeline_backtest_signals
 from .clustering import calculate_cluster_breadth, calculate_cluster_momentum, cluster_membership_table, hierarchical_clustering, rank_clusters
 from .correlation import static_correlation_matrix
 from .country_breadth import calculate_country_breadth
@@ -76,6 +76,7 @@ def run_topdown_pipeline(
     backtest_enabled: bool = False,
     backtest_config: BacktestConfig | None = None,
     backtest_signal_df: pd.DataFrame | None = None,
+    backtest_price_source: str = "historical price data",
 ) -> dict[str, pd.DataFrame]:
     """Run report-ready top-down research outputs from supplied CSV-derived data."""
     outputs: dict[str, pd.DataFrame] = {}
@@ -235,6 +236,7 @@ def run_topdown_pipeline(
         enabled=backtest_enabled,
         config=backtest_config,
         signal_df=backtest_signal_df,
+        price_source_label=backtest_price_source,
     )
 
     return outputs
@@ -247,6 +249,7 @@ def _add_backtest_outputs(
     enabled: bool,
     config: BacktestConfig | None,
     signal_df: pd.DataFrame | None,
+    price_source_label: str,
 ) -> None:
     outputs["backtest_summary"] = pd.DataFrame()
     outputs["backtest_portfolio"] = pd.DataFrame()
@@ -263,6 +266,7 @@ def _add_backtest_outputs(
             stock_ranking_df=outputs.get("stock_ranking", pd.DataFrame()),
             dr_mapping_df=dr_mapping_df,
         )
+    warnings.extend(build_backtest_data_coverage_warnings(price_df, signal_df, price_source_label))
     result = run_signal_backtest(price_df=price_df, signal_df=signal_df, config=config)
     outputs["backtest_summary"] = result.metrics
     outputs["backtest_portfolio"] = result.portfolio
@@ -345,6 +349,9 @@ def run_pipeline_from_config(
         else:
             warnings.append("DR mapping exists but no DR tickers are present in price data")
 
+    active_source = config.get("active_source", "csv")
+    backtest_price_source = "Yahoo historical prices" if active_source == "yahoo" else "configured historical prices"
+
     outputs = run_topdown_pipeline(
         price_df=price_df,
         volume_df=volume_df,
@@ -366,6 +373,7 @@ def run_pipeline_from_config(
         fx_rates_df=fx_rates,
         backtest_enabled=backtest_enabled,
         backtest_config=backtest_config,
+        backtest_price_source=backtest_price_source,
     )
     outputs["warnings"] = pd.DataFrame({"warning": warnings})
     outputs["data_quality_report"] = summarize_reference_data_quality(price_df, metadata, dr_mapping)
