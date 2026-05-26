@@ -2,6 +2,19 @@
 
 This project builds a top-down global market research system.
 
+## Required Reading For Codex Sessions
+
+Before coding, reviewing, committing, or pushing, read these files if present:
+
+1. `AGENTS.md`
+2. `CODEX_WORKFLOW.md`
+3. `RUN_STATE.md`
+4. `PROJECT_STATUS.md`
+5. `PHASE_PLAN.md`
+6. `TROUBLESHOOTING.md`
+
+Use `CODEX_WORKFLOW.md` for pre-flight checks, post-work checks, and Git workflow. Keep future prompts short by relying on these files instead of repeating the full workflow each session.
+
 ## Core Objective
 
 Build a research dashboard that analyzes markets in this order:

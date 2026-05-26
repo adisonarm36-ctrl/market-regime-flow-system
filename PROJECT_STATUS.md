@@ -7,11 +7,13 @@
 - Phase 3A completed: Yahoo historical OHLCV adapter through yfinance with cache-first mode.
 - Phase 3B completed: Hybrid Yahoo + local reference data integration.
 - Phase 4 completed: Thailand universe and DR/DRx local reference data workflows.
-- Current test result: 76 passed.
+- Phase 5A completed: DR fair value, FX-adjusted tracking, and execution-quality workflow.
+- Current test result: 86 passed on 2026-05-25 with Python 3.14.2.
 - CSV remains supported and is still the default fallback/source.
 - Yahoo historical adapter works with cache-first mode.
 - Hybrid Yahoo + local reference data workflow works.
 - Thailand reference schemas, domestic breadth eligibility, and DR/DRx mapping reports work with local files.
+- DR fair value and execution-quality workflow is merged into `main`.
 
 ## Important Architecture Decisions
 
@@ -22,6 +24,7 @@
 - No API keys.
 - Outputs are research signals only, not buy/sell recommendations.
 - DR is not part of Thailand domestic market breadth.
+- DR signal should come from the underlying instrument; local DR data is for execution quality.
 - Missing optional data should be reported as warnings and skipped where possible.
 
 ## Key Files Changed So Far
@@ -34,6 +37,8 @@
 - `src/thailand_breadth.py`
 - `src/dr_mapping.py`
 - `src/dr_quality.py`
+- `src/dr_valuation.py`
+- `src/dr_execution_quality.py`
 - `src/topdown_pipeline.py`
 - `src/dashboard.py`
 - `data/reference/thailand/`
@@ -46,12 +51,13 @@
 - Bundled Thailand reference files are fake/demo samples only.
 - Real Thailand universe files must be manually verified before research use.
 - DR/DRx mapping needs verified local reference data for production research.
-- DR fair value and FX-adjusted tracking are not implemented yet.
-- Bid/ask spread needs local market data input.
 - Backtest and risk throttle are not implemented yet.
+- Dashboard and report export for backtest results are not implemented yet.
 
 ## Next Phase
 
-Phase 5: DR Fair Value, FX-Adjusted Tracking, and Local Liquidity Inputs
+Phase 5B-1: Backtest Core Engine and Risk Throttle
 
-Alternative Phase 5: Backtest and Risk Throttle
+Then:
+- Phase 5B-2: Backtest Integration with Topdown Pipeline
+- Phase 5B-3: Backtest Dashboard and Report Export

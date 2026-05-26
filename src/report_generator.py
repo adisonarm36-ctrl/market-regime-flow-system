@@ -81,6 +81,40 @@ def generate_dr_quality_summary(dr_quality_ranking: pd.DataFrame, limit: int = 5
     return "Research signal - DR execution quality: " + "; ".join(rows)
 
 
+def generate_backtest_summary(backtest_summary: pd.DataFrame) -> str:
+    """Generate a research-assumption backtest narrative with metric values."""
+    if backtest_summary.empty:
+        return "Backtest skipped: no research backtest assumptions or metrics available."
+    row = backtest_summary.iloc[0]
+    if int(row.get("observations", 0) or 0) == 0:
+        return "Backtest skipped: no aligned return observations available."
+    return (
+        "Research signal - backtest assumptions: "
+        f"total_return={float(row['total_return']):.4f}, "
+        f"annualized_volatility={float(row['annualized_volatility']):.4f}, "
+        f"max_drawdown={float(row['max_drawdown']):.4f}, "
+        f"hit_rate={float(row['hit_rate']):.4f}, "
+        f"average_gross_exposure={float(row['average_gross_exposure']):.4f}. "
+        "This is not financial advice, a recommendation, or a guarantee of future results."
+    )
+
+
+def build_backtest_report_tables(outputs: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
+    """Return non-empty backtest tables for CSV/HTML report exports."""
+    table_names = [
+        "backtest_summary",
+        "backtest_portfolio",
+        "backtest_positions",
+        "backtest_instrument_metrics",
+        "backtest_warnings",
+    ]
+    return {
+        name: table
+        for name in table_names
+        if isinstance((table := outputs.get(name)), pd.DataFrame) and not table.empty
+    }
+
+
 def build_daily_report(outputs: dict[str, pd.DataFrame]) -> dict[str, str]:
     """Build all daily report narrative sections from pipeline outputs."""
     return {
@@ -91,6 +125,7 @@ def build_daily_report(outputs: dict[str, pd.DataFrame]) -> dict[str, str]:
         "cluster": generate_cluster_summary(outputs.get("cluster_summary", pd.DataFrame())),
         "stock_selection": generate_stock_selection_summary(outputs.get("stock_ranking", pd.DataFrame())),
         "dr_quality": generate_dr_quality_summary(outputs.get("dr_quality_ranking", pd.DataFrame())),
+        "backtest": generate_backtest_summary(outputs.get("backtest_summary", pd.DataFrame())),
     }
 
 
