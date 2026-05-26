@@ -273,6 +273,8 @@ Then run the dashboard. `Config source` is the default sidebar workflow and disp
 
 The dashboard validates Yahoo config settings before loading data and reports missing tickers, unsupported intervals/cache formats, invalid date settings, and missing local reference paths. Tests use mocks/fake data and do not call Yahoo.
 
+For Thailand-focused Yahoo loading, local reference files may include a verified `YahooTicker`, `Yahoo_Ticker`, `YahooSymbol`, or `Yahoo_Symbol` column. The dashboard can use these local fields to generate a Yahoo ticker list for an eligible Thailand domestic universe. Missing Yahoo ticker formats are reported and skipped; the app does not infer or invent exchange suffixes.
+
 ```powershell
 .\.venv\Scripts\streamlit.exe run app.py
 ```

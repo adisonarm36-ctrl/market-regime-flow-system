@@ -12,23 +12,23 @@ The project is currently safe to continue from the existing codebase. CSV remain
 
 ## Next Phase
 
-Phase 6C: Universe/Ticker Management.
+Phase 6D: Yahoo Data Refresh and Cache Controls.
 
 ## Exact Next Prompt
 
 ```text
 Read AGENTS.md, CODEX_WORKFLOW.md, RUN_STATE.md, PROJECT_STATUS.md, PHASE_PLAN.md, and TROUBLESHOOTING.md first.
 
-Implement Phase 6C: Universe/Ticker Management.
+Implement Phase 6D: Yahoo Data Refresh and Cache Controls.
 
 Goal:
-Add local reference-driven universe selection that can generate Yahoo ticker lists where local Yahoo ticker fields are configured.
+Add explicit Yahoo historical refresh and cache controls while avoiding repeated downloads on Streamlit reruns.
 
 Tasks:
-- Add local reference-driven ticker universe selection.
-- Allow selected universe to generate a Yahoo ticker list where possible.
-- Warn when Yahoo ticker format is missing or not configured.
-- Preserve Thailand domestic breadth exclusions.
+- Add a dashboard button to refresh Yahoo historical data.
+- Display cache-first status and stale-cache warnings.
+- Display fallback-to-cache warnings.
+- Preserve cached loading by default on reruns.
 - Add tests using mocks/fake data only.
 Constraints:
 - No invented real market data.
