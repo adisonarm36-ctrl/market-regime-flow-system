@@ -33,6 +33,7 @@ class YahooDataAdapter(DataAdapter):
         cache_format: str = "parquet",
         cache_ttl_hours: float = 8,
         fallback_to_cache: bool = True,
+        force_refresh: bool = False,
         reference_data: dict | None = None,
         yfinance_module: Any | None = None,
     ) -> None:
@@ -46,6 +47,7 @@ class YahooDataAdapter(DataAdapter):
         self.cache_format = cache_format
         self.cache_ttl_hours = cache_ttl_hours
         self.fallback_to_cache = fallback_to_cache
+        self.force_refresh = force_refresh
         self.reference_data = reference_data or {}
         self._yf = yfinance_module
         self.warnings: list[str] = []
@@ -65,6 +67,7 @@ class YahooDataAdapter(DataAdapter):
             cache_format=settings.get("cache_format", "parquet"),
             cache_ttl_hours=settings.get("cache_ttl_hours", 8),
             fallback_to_cache=settings.get("fallback_to_cache", True),
+            force_refresh=settings.get("force_refresh", False),
             reference_data=settings.get("reference_data") or {},
         )
 
@@ -77,11 +80,12 @@ class YahooDataAdapter(DataAdapter):
         if self.cache_format not in SUPPORTED_CACHE_FORMATS:
             raise ValueError(f"Unsupported cache_format: {self.cache_format}. Use csv or parquet")
 
-    def load_prices(self) -> pd.DataFrame:
+    def load_prices(self, force_refresh: bool | None = None) -> pd.DataFrame:
         """Load historical OHLCV data from fresh cache, Yahoo, or stale cache fallback."""
         self.warnings = []
         cache_path = self.cache_path()
-        if self._is_cache_fresh(cache_path):
+        refresh_requested = self.force_refresh if force_refresh is None else bool(force_refresh)
+        if not refresh_requested and self._is_cache_fresh(cache_path):
             return self._read_cache(cache_path)
 
         try:
@@ -91,7 +95,8 @@ class YahooDataAdapter(DataAdapter):
             return normalized
         except Exception as exc:
             if self.fallback_to_cache and cache_path.exists():
-                self.warnings.append(f"fallback to stale cache after Yahoo fetch failure: {exc}")
+                action = "refresh" if refresh_requested else "fetch"
+                self.warnings.append(f"fallback to cache after Yahoo {action} failure: {exc}")
                 return self._read_cache(cache_path)
             raise RuntimeError(f"Yahoo historical data fetch failed and no usable cache is available: {exc}") from exc
 
@@ -148,6 +153,37 @@ class YahooDataAdapter(DataAdapter):
         )
         digest = hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
         return self.cache_dir / f"yahoo_{digest}.{self.cache_format}"
+
+    def cache_metadata(self, now: datetime | None = None) -> dict[str, Any]:
+        """Return cache metadata for dashboard/status displays without loading data."""
+        cache_path = self.cache_path()
+        metadata: dict[str, Any] = {
+            "cache_path": str(cache_path),
+            "cache_exists": cache_path.exists(),
+            "cache_last_updated": "",
+            "cache_age_hours": None,
+            "cache_ttl_hours": float(self.cache_ttl_hours),
+            "cache_is_fresh": False,
+            "cache_is_stale": False,
+            "cache_first_enabled": not self.force_refresh,
+            "fallback_to_cache": self.fallback_to_cache,
+        }
+        if not cache_path.exists():
+            return metadata
+
+        current_time = now or datetime.now()
+        modified = datetime.fromtimestamp(cache_path.stat().st_mtime)
+        age_hours = (current_time - modified).total_seconds() / 3600
+        is_fresh = age_hours <= float(self.cache_ttl_hours)
+        metadata.update(
+            {
+                "cache_last_updated": modified.strftime("%Y-%m-%d %H:%M:%S"),
+                "cache_age_hours": age_hours,
+                "cache_is_fresh": is_fresh,
+                "cache_is_stale": not is_fresh,
+            }
+        )
+        return metadata
 
     def _download_from_yahoo(self) -> pd.DataFrame:
         yf = self._yf

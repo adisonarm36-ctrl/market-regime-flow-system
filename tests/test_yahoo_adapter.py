@@ -121,6 +121,31 @@ def test_cache_hit_avoids_yfinance_download(tmp_path):
     assert result["Close"].iloc[0] == 1
 
 
+def test_force_refresh_bypasses_fresh_cache(tmp_path):
+    yf = FakeYFinance(_single_ticker_frame())
+    adapter = YahooDataAdapter(["AAA"], cache_dir=tmp_path, cache_format="csv", yfinance_module=yf)
+    cache_path = adapter.cache_path()
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cached = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2026-01-01"]),
+            "Ticker": ["AAA"],
+            "Open": [1],
+            "High": [1],
+            "Low": [1],
+            "Close": [1],
+            "Volume": [1],
+            "Adjusted Close": [1],
+        }
+    )
+    cached.to_csv(cache_path, index=False)
+
+    result = adapter.load_prices(force_refresh=True)
+
+    assert yf.calls == 1
+    assert result["Close"].iloc[-1] == 101.0
+
+
 def test_cache_stale_then_refresh(tmp_path):
     yf = FakeYFinance(_single_ticker_frame())
     adapter = YahooDataAdapter(["AAA"], cache_dir=tmp_path, cache_format="csv", cache_ttl_hours=0, yfinance_module=yf)
@@ -159,7 +184,57 @@ def test_fallback_to_stale_cache_on_fetch_failure(tmp_path):
     result = adapter.load_prices()
 
     assert result["Close"].iloc[0] == 1
-    assert "fallback to stale cache" in adapter.warnings[0]
+    assert "fallback to cache" in adapter.warnings[0]
+
+
+def test_force_refresh_failure_falls_back_to_cache_with_warning(tmp_path):
+    adapter = YahooDataAdapter(["AAA"], cache_dir=tmp_path, cache_format="csv", yfinance_module=FakeYFinance(error=RuntimeError("network down")))
+    cache_path = adapter.cache_path()
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2026-01-01"]),
+            "Ticker": ["AAA"],
+            "Open": [1],
+            "High": [1],
+            "Low": [1],
+            "Close": [1],
+            "Volume": [1],
+            "Adjusted Close": [1],
+        }
+    ).to_csv(cache_path, index=False)
+
+    result = adapter.load_prices(force_refresh=True)
+
+    assert result["Close"].iloc[0] == 1
+    assert "fallback to cache after Yahoo refresh failure" in adapter.warnings[0]
+
+
+def test_cache_metadata_reports_stale_status(tmp_path):
+    adapter = YahooDataAdapter(["AAA"], cache_dir=tmp_path, cache_format="csv", cache_ttl_hours=1)
+    cache_path = adapter.cache_path()
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2026-01-01"]),
+            "Ticker": ["AAA"],
+            "Open": [1],
+            "High": [1],
+            "Low": [1],
+            "Close": [1],
+            "Volume": [1],
+            "Adjusted Close": [1],
+        }
+    ).to_csv(cache_path, index=False)
+    old_time = (datetime.now() - timedelta(hours=3)).timestamp()
+    os.utime(cache_path, (old_time, old_time))
+
+    metadata = adapter.cache_metadata()
+
+    assert metadata["cache_exists"] is True
+    assert metadata["cache_is_fresh"] is False
+    assert metadata["cache_is_stale"] is True
+    assert metadata["cache_first_enabled"] is True
 
 
 def test_missing_tickers_raises_value_error():
