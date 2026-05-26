@@ -12,27 +12,27 @@ The project is currently safe to continue from the existing codebase. CSV remain
 
 ## Next Phase
 
-Phase 5B-1: Backtest Core Engine and Risk Throttle.
+Phase 6B: Yahoo-first Config Workflow.
 
 ## Exact Next Prompt
 
 ```text
 Read AGENTS.md, CODEX_WORKFLOW.md, RUN_STATE.md, PROJECT_STATUS.md, PHASE_PLAN.md, and TROUBLESHOOTING.md first.
 
-Implement Phase 5B-1: Backtest Core Engine and Risk Throttle.
+Implement Phase 6B: Yahoo-first Config Workflow.
 
 Goal:
-Add a reusable backtest core engine and risk throttle for research signals only.
+Make the Yahoo-first config workflow clearer and safer without using realtime data, scraping, API keys, or network calls in tests.
 
 Tasks:
-- Add signal-to-position simulation using configured research signals.
-- Calculate backtest metrics from adjusted close when available.
-- Add risk throttle rules such as max exposure, volatility filter, drawdown guard, and cash allocation.
-- Handle missing data by reporting and skipping affected layers.
-- Add focused pytest coverage using fake/demo data only.
+- Ensure config/data_sources.yaml has a clear yahoo example.
+- Add helper validation for Yahoo ticker list, period/start/end, interval, and cache settings.
+- Add user-friendly warnings for missing tickers or partial Yahoo data.
+- Add dashboard controls for refresh/cache behavior without source-code constants.
+- Add tests using mocks/fake data only.
 Constraints:
 - No invented real market data.
-- No buy/sell recommendations.
+- No realtime, scraping, API keys, broker integration, or buy/sell recommendations.
 - Keep outputs as research signals only.
 ```
 
@@ -47,3 +47,4 @@ Constraints:
 - Keep DR/DRx separate from Thailand domestic breadth.
 - Bundled Thailand reference files are fake/demo samples only.
 - Use feature branches for new implementation work.
+- Yahoo historical data is price-only; local reference files remain required for metadata, Thailand universe, DR/DRx mapping, security type, sector/country maps, and local DR quality data.
