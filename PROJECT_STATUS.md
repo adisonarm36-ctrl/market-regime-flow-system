@@ -8,13 +8,15 @@
 - Phase 3B completed: Hybrid Yahoo + local reference data integration.
 - Phase 4 completed: Thailand universe and DR/DRx local reference data workflows.
 - Phase 5A completed: DR fair value, FX-adjusted tracking, and execution-quality workflow.
-- Current test result: 86 passed on 2026-05-25 with Python 3.14.2.
+- Phase 6A-6F completed: Yahoo-first dashboard workflow, config validation, local ticker universe selection, refresh/cache controls, Yahoo-fed opt-in backtest, and documentation/test finalization.
+- Current test result: 119 passed, 1 pytest cache warning on 2026-05-27 with Python 3.14.2.
 - CSV remains supported and is still the default fallback/source.
-- Yahoo historical adapter works with cache-first mode.
+- Yahoo historical adapter works with cache-first mode and explicit user-controlled refresh.
 - Hybrid Yahoo + local reference data workflow works.
 - Dashboard source UX now defaults to the configured source path, with manual upload kept as an Advanced/Fallback workflow.
-- Yahoo-first config workflow now has clearer config defaults, validation helpers, partial-data warnings, and dashboard cache fallback controls.
+- Yahoo-first config workflow now has clearer config defaults, validation helpers, partial-data warnings, dashboard cache fallback controls, stale-cache warnings, and fallback-to-cache warnings.
 - Local reference-driven Yahoo ticker universe selection is available where verified Yahoo ticker fields exist.
+- Opt-in research backtests can use Yahoo-loaded historical prices through the configured pipeline and include coverage warnings.
 - Thailand reference schemas, domestic breadth eligibility, and DR/DRx mapping reports work with local files.
 - DR fair value and execution-quality workflow is merged into `main`.
 
@@ -54,14 +56,10 @@
 - Bundled Thailand reference files are fake/demo samples only.
 - Real Thailand universe files must be manually verified before research use.
 - DR/DRx mapping needs verified local reference data for production research.
-- Backtest and risk throttle are not implemented yet.
-- Dashboard and report export for backtest results are not implemented yet.
-- Yahoo-first refresh controls and Yahoo-fed backtest workflow are not fully implemented yet.
+- Backtest/risk throttle is implemented as research assumptions, but it still depends on configured historical data coverage and explicit user opt-in.
+- Dashboard and report export for backtest results are available for existing backtest outputs, but real production use requires verified source data and review of assumptions.
+- Yahoo-first workflow is complete through documentation/tests, but Yahoo coverage can still be partial or unavailable.
 
 ## Next Phase
 
-Phase 5B-1: Backtest Core Engine and Risk Throttle
-
-Then:
-- Phase 5B-2: Backtest Integration with Topdown Pipeline
-- Phase 5B-3: Backtest Dashboard and Report Export
+No new feature phase is active. Recommended next work is production-data readiness: verify real local reference files, replace fake/demo samples where needed, and expand documentation/tests only when behavior changes.

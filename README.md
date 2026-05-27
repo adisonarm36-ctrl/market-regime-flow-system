@@ -6,7 +6,7 @@ This project outputs research signals only. It does not provide financial advice
 
 ## Current Status
 
-V1 stabilization is CSV-first and runnable with bundled fake/demo sample data. No live APIs are connected.
+V1 stabilization supports configured CSV sources, manual upload fallback, and an optional Yahoo historical/cache-first workflow. No realtime APIs, broker integrations, scraping, or trading systems are connected.
 
 Implemented:
 
@@ -26,6 +26,9 @@ Implemented:
 - Streamlit dashboard
 - CSV and HTML report generation
 - config and metadata validation helpers
+- Yahoo-first dashboard source workflow with explicit historical cache controls
+- local reference-driven Yahoo ticker universe selection where verified Yahoo ticker fields exist
+- opt-in research backtest assumptions from configured historical prices, including Yahoo-loaded historical data
 - end-to-end sample data smoke test
 
 ## Install
@@ -62,7 +65,7 @@ Open:
 http://localhost:8501
 ```
 
-In the sidebar, either upload CSV files or enable `Use bundled fake/demo sample data`.
+In the sidebar, `Config source` is the default workflow. Manual CSV upload remains available under `Advanced / fallback manual upload`, and bundled fake/demo sample data remains available only as a fallback smoke-test path.
 
 ## Sample Data
 
@@ -269,7 +272,7 @@ Install dependencies:
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-Then run the dashboard. `Config source` is the default sidebar workflow and displays `active_source`, Yahoo historical/not-realtime status, cache path, cache availability, cache last-updated timestamp when available, and cache fallback behavior.
+Then run the dashboard. `Config source` is the default sidebar workflow and displays `active_source`, Yahoo historical/not-realtime status, cache path, cache availability, cache last-updated timestamp when available, cache-first status, stale-cache warnings, and cache fallback behavior.
 
 The dashboard validates Yahoo config settings before loading data and reports missing tickers, unsupported intervals/cache formats, invalid date settings, and missing local reference paths. Tests use mocks/fake data and do not call Yahoo.
 
@@ -286,8 +289,16 @@ For Thailand-focused Yahoo loading, local reference files may include a verified
 - If fetch fails and `fallback_to_cache: true`, stale cache is used with a warning.
 - If fetch fails and no cache exists, the adapter raises a clear error.
 - Cache file names are deterministic from tickers, period/start/end, interval, and auto-adjust settings.
+- Streamlit reruns preserve cache-first behavior by default.
+- The dashboard has an explicit `Refresh Yahoo historical data` button; refresh is user-controlled and historical only, not realtime.
 
 For daily research, `cache_ttl_hours: 8` is a reasonable twice-daily refresh setting. Increase it if you only refresh once per trading day.
+
+### Yahoo Historical Backtest
+
+Backtests are opt-in research assumptions. When `Enable research backtest assumptions` is selected in `Config source` mode, the existing pipeline can use Yahoo-loaded historical prices after they are normalized into the same adjusted-close Date x Ticker table used by CSV workflows.
+
+Backtest outputs include coverage warnings for overlapping dates and tickers. DR/DRx backtest signals remain underlying-driven when local DR mappings exist; Yahoo data is not treated as local DR execution-quality data. Backtest metrics are not financial advice, trading advice, recommendations, or future-return guarantees.
 
 ### Yahoo Limitations
 
@@ -354,6 +365,7 @@ In dashboard `Config source` mode, the app displays:
 - Pipeline Layer Status
 - reference warnings
 - tickers missing metadata
+- backtest coverage warnings when research backtest assumptions are enabled
 
 ## Thailand Reference Data Workflow
 
@@ -481,7 +493,7 @@ Export helpers:
 - No official exchange calendars.
 - Flow is a price-based proxy unless actual fund-flow data is supplied.
 - DR fair value, FX-adjusted tracking, bid/ask spread, and tracking quality require local market data inputs.
-- Dashboard expects CSV inputs and does not persist user settings.
+- Dashboard supports configured CSV/Yahoo sources plus manual upload fallback, but does not persist user settings.
 - Sample data is fake/demo data only.
 
 ## Roadmap
@@ -493,6 +505,8 @@ Phase B: Real Thailand universe
 Phase C: DR fair value/tracking
 
 Phase D: Backtest/risk throttle
+
+Phase E: Production reference-data verification and broader research reporting
 
 ## Why Research Signals Only
 

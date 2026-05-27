@@ -6,6 +6,22 @@ Make the dashboard default to the configured Yahoo historical data workflow whil
 
 All outputs remain research signals only. Do not describe any output as financial advice, a buy/sell recommendation, or a future-return guarantee.
 
+## Implementation Status
+
+Phases 6A through 6F are complete as of 2026-05-27.
+
+Implemented behavior:
+- Dashboard defaults to Config/Yahoo mode while preserving Advanced/Fallback manual upload.
+- Yahoo config validation reports missing tickers, invalid intervals/cache settings, date issues, partial data, and missing local reference paths.
+- Local reference files can provide verified Yahoo ticker fields for universe selection; the system does not infer or invent ticker mappings.
+- Dashboard shows Yahoo historical/cache state, cache path, last updated timestamp, cache-first status, stale-cache warnings, fallback-to-cache warnings, and an explicit historical refresh button.
+- Opt-in research backtests can use Yahoo-loaded historical prices through the configured pipeline and include coverage warnings.
+- Tests use mocks/fake data and do not call external network services.
+
+Remaining responsibility:
+- Replace fake/demo sample reference files with manually verified local data before production research use.
+- Keep Yahoo historical/cache-based only and keep local reference files as the source of truth for metadata, Thailand universe membership, DR/DRx mapping, security type, sector/country maps, and local DR quality data.
+
 ## Required Reading
 
 Before implementing any phase, read:
