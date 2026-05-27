@@ -276,6 +276,8 @@ Then run the dashboard. `Config source` is the default sidebar workflow and disp
 
 The dashboard validates Yahoo config settings before loading data and reports missing tickers, unsupported intervals/cache formats, invalid date settings, and missing local reference paths. Tests use mocks/fake data and do not call Yahoo.
 
+For first-run smoke testing, the dashboard has an explicit `Use bundled fake/demo reference files` control in `Config source` mode. When enabled, missing local reference paths are mapped at runtime to bundled sample files such as `data/reference/metadata_sample.csv`, `data/reference/sector_map_sample.csv`, and `data/reference/country_map_sample.csv`. The toggle does not edit `config/data_sources.yaml`, and the dashboard keeps showing missing production reference warnings. Demo reference files are fake/sample data and are not suitable for production research.
+
 For Thailand-focused Yahoo loading, local reference files may include a verified `YahooTicker`, `Yahoo_Ticker`, `YahooSymbol`, or `Yahoo_Symbol` column. The dashboard can use these local fields to generate a Yahoo ticker list for an eligible Thailand domestic universe. Missing Yahoo ticker formats are reported and skipped; the app does not infer or invent exchange suffixes.
 
 ```powershell

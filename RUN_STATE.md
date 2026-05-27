@@ -2,43 +2,40 @@
 
 ## Last Completed Work
 
-Phase 6F: Yahoo-first workflow documentation and final tests.
+Phase 7B: Demo Reference Bootstrap / Sample Reference Mode.
 
 The project is safe to continue from the current codebase. CSV remains supported, manual upload remains an Advanced/Fallback workflow, Yahoo/yfinance is historical/cache-based only, and opt-in backtests are research assumptions only.
 
+Config source mode now has an explicit `Use bundled fake/demo reference files` toggle. When enabled, missing local reference paths are mapped at runtime to bundled fake/sample files without editing `config/data_sources.yaml`. Production missing-reference warnings remain visible, and demo reference data is labeled as not suitable for production research.
+
 ## Current Test Result
 
-`119 passed, 1 pytest cache warning` on 2026-05-27 with Python 3.14.2.
+`121 passed, 1 pytest cache warning` on 2026-05-27 with Python 3.14.2.
 
 The warning is the known Windows `.pytest_cache` creation/cleanup issue documented in `TROUBLESHOOTING.md`; it does not affect tracked files or test pass/fail status.
 
 ## Next Phase
 
-No new feature phase is active.
+Recommended next phase is Phase 7C: Yahoo-first startup checklist.
 
-Recommended next work is production-data readiness:
-
-- replace fake/demo sample reference files with manually verified local files before research use
-- verify Thailand universe, security type, liquidity, sector/industry, and DR/DRx mappings
-- keep Yahoo as historical OHLCV only, not realtime or metadata source of truth
-- add documentation/tests only when behavior changes
+Do not start Phase 7C or later unless explicitly requested.
 
 ## Exact Next Prompt
 
 ```text
 Read AGENTS.md, CODEX_WORKFLOW.md, RUN_STATE.md, PROJECT_STATUS.md, PHASE_PLAN.md, and TROUBLESHOOTING.md first.
 
-Review production-data readiness for the Yahoo-first research workflow.
+Implement only Phase 7C: Yahoo-First Startup Checklist from FIRST_RUN_USABILITY_PLAN.md.
 
 Goal:
-Identify remaining data-readiness gaps without adding live APIs, scraping, broker integration, realtime data, or financial advice.
+Show a clear startup checklist in the dashboard before attempting the full pipeline.
 
 Tasks:
-- Verify which local reference files are fake/demo samples.
-- List required verified replacement files for production research.
-- Confirm manual upload fallback remains available.
-- Confirm Yahoo remains historical/cache-based only.
-- Run tests if source or docs change.
+- Keep Phase 7B demo reference mode explicit and clearly labeled.
+- Do not add the Phase 7D smoke test.
+- Do not hide missing production references.
+- Keep tests network-free.
+- Run the workflow checks from CODEX_WORKFLOW.md.
 ```
 
 ## Handoff Notes
@@ -51,5 +48,6 @@ Tasks:
 - Preserve Yahoo as historical price-only source.
 - Keep DR/DRx separate from Thailand domestic breadth.
 - Bundled Thailand reference files are fake/demo samples only.
+- Demo reference bootstrap mode is fake/sample data for smoke testing only.
 - Yahoo historical data is price-only; local reference files remain required for metadata, Thailand universe, DR/DRx mapping, security type, sector/country maps, and local DR quality data.
 - Do not invent Yahoo ticker mappings.

@@ -9,12 +9,15 @@
 - Phase 4 completed: Thailand universe and DR/DRx local reference data workflows.
 - Phase 5A completed: DR fair value, FX-adjusted tracking, and execution-quality workflow.
 - Phase 6A-6F completed: Yahoo-first dashboard workflow, config validation, local ticker universe selection, refresh/cache controls, Yahoo-fed opt-in backtest, and documentation/test finalization.
-- Current test result: 119 passed, 1 pytest cache warning on 2026-05-27 with Python 3.14.2.
+- Phase 7A completed: first-run Yahoo dependency diagnostics for missing `yfinance`.
+- Phase 7B completed: explicit runtime demo reference bootstrap mode for bundled fake/sample reference files.
+- Current test result: 121 passed, 1 pytest cache warning on 2026-05-27 with Python 3.14.2.
 - CSV remains supported and is still the default fallback/source.
 - Yahoo historical adapter works with cache-first mode and explicit user-controlled refresh.
 - Hybrid Yahoo + local reference data workflow works.
 - Dashboard source UX now defaults to the configured source path, with manual upload kept as an Advanced/Fallback workflow.
 - Yahoo-first config workflow now has clearer config defaults, validation helpers, partial-data warnings, dashboard cache fallback controls, stale-cache warnings, and fallback-to-cache warnings.
+- Dashboard Config source mode can explicitly map missing local reference paths to bundled fake/demo sample files for first-run smoke testing without editing config files.
 - Local reference-driven Yahoo ticker universe selection is available where verified Yahoo ticker fields exist.
 - Opt-in research backtests can use Yahoo-loaded historical prices through the configured pipeline and include coverage warnings.
 - Thailand reference schemas, domestic breadth eligibility, and DR/DRx mapping reports work with local files.
@@ -54,6 +57,7 @@
 ## Known Remaining Gaps
 
 - Bundled Thailand reference files are fake/demo samples only.
+- Demo reference bootstrap mode is for smoke testing only and is not production research data.
 - Real Thailand universe files must be manually verified before research use.
 - DR/DRx mapping needs verified local reference data for production research.
 - Backtest/risk throttle is implemented as research assumptions, but it still depends on configured historical data coverage and explicit user opt-in.
@@ -62,4 +66,4 @@
 
 ## Next Phase
 
-No new feature phase is active. Recommended next work is production-data readiness: verify real local reference files, replace fake/demo samples where needed, and expand documentation/tests only when behavior changes.
+Recommended next phase: Phase 7C, Yahoo-first startup checklist. Do not start Phase 7C unless explicitly requested.

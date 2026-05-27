@@ -6,6 +6,7 @@ from src.dashboard import (
     CONFIG_SOURCE_MODE,
     MANUAL_FALLBACK_MODE,
     active_source_label,
+    apply_demo_reference_runtime_config,
     apply_yahoo_runtime_options,
     apply_yahoo_ticker_universe,
     dashboard_source_options,
@@ -93,6 +94,28 @@ def test_disable_yahoo_force_refresh_does_not_mutate_config():
 
     assert result["source_settings"]["yahoo"]["force_refresh"] is False
     assert config["source_settings"]["yahoo"]["force_refresh"] is True
+
+
+def test_apply_demo_reference_runtime_config_requires_explicit_enable():
+    config = {
+        "active_source": "yahoo",
+        "source_settings": {
+            "yahoo": {
+                "reference_data": {
+                    "metadata_path": "data/reference/metadata.csv",
+                }
+            }
+        },
+    }
+
+    disabled, disabled_warnings = apply_demo_reference_runtime_config(config, enabled=False)
+    enabled, enabled_warnings = apply_demo_reference_runtime_config(config, enabled=True)
+
+    assert disabled["source_settings"]["yahoo"]["reference_data"]["metadata_path"] == "data/reference/metadata.csv"
+    assert disabled_warnings == []
+    assert enabled["source_settings"]["yahoo"]["reference_data"]["metadata_path"] == "data/reference/metadata_sample.csv"
+    assert any("fake/sample data" in warning for warning in enabled_warnings)
+    assert config["source_settings"]["yahoo"]["reference_data"]["metadata_path"] == "data/reference/metadata.csv"
 
 
 def test_yahoo_dependency_diagnostic_reports_available_with_mock():
