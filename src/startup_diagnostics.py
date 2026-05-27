@@ -5,6 +5,8 @@ from importlib import util
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
+
 
 YFINANCE_INSTALL_COMMAND = r".\.venv\Scripts\python.exe -m pip install -r requirements.txt"
 STREAMLIT_VENV_RUN_COMMAND = r".\.venv\Scripts\python.exe -m streamlit run app.py"
@@ -28,6 +30,22 @@ class StartupChecklistRow:
     status: str
     detail: str
     next_step: str = ""
+
+
+@dataclass(frozen=True)
+class YahooSmokeTestResult:
+    """Summary of one explicit Yahoo historical smoke-test run."""
+
+    attempted_tickers: tuple[str, ...]
+    rows_loaded: int
+    start_date: str
+    end_date: str
+    cache_path: str
+    cache_exists_before: bool
+    cache_exists_after: bool
+    cache_status: str
+    warnings: tuple[str, ...] = ()
+    error: str = ""
 
 
 def check_yfinance_available(find_spec=util.find_spec) -> DependencyDiagnostic:
@@ -202,6 +220,40 @@ def startup_checklist_has_blockers(rows: list[StartupChecklistRow]) -> bool:
     return any(row.status == "blocker" for row in rows)
 
 
+def run_yahoo_historical_smoke_test(adapter) -> YahooSmokeTestResult:
+    """Run one cache-first Yahoo historical loading smoke test through an adapter."""
+    before = adapter.cache_metadata()
+    try:
+        prices = adapter.load_prices(force_refresh=False)
+        after = adapter.cache_metadata()
+        start_date, end_date = _date_range(prices)
+        return YahooSmokeTestResult(
+            attempted_tickers=tuple(adapter.tickers),
+            rows_loaded=int(len(prices)),
+            start_date=start_date,
+            end_date=end_date,
+            cache_path=str(after.get("cache_path") or before.get("cache_path") or ""),
+            cache_exists_before=bool(before.get("cache_exists")),
+            cache_exists_after=bool(after.get("cache_exists")),
+            cache_status=_smoke_cache_status(before, after, getattr(adapter, "warnings", [])),
+            warnings=tuple(getattr(adapter, "warnings", [])),
+        )
+    except Exception as exc:
+        after = adapter.cache_metadata()
+        return YahooSmokeTestResult(
+            attempted_tickers=tuple(getattr(adapter, "tickers", [])),
+            rows_loaded=0,
+            start_date="",
+            end_date="",
+            cache_path=str(after.get("cache_path") or before.get("cache_path") or ""),
+            cache_exists_before=bool(before.get("cache_exists")),
+            cache_exists_after=bool(after.get("cache_exists")),
+            cache_status=_smoke_cache_status(before, after, getattr(adapter, "warnings", [])),
+            warnings=tuple(getattr(adapter, "warnings", [])),
+            error=str(exc),
+        )
+
+
 def _reference_checklist_rows(reference_data: dict, demo_reference_enabled: bool) -> list[StartupChecklistRow]:
     required = {
         "metadata_path": "metadata",
@@ -269,3 +321,22 @@ def _reference_checklist_rows(reference_data: dict, demo_reference_enabled: bool
         )
     )
     return rows
+
+
+def _date_range(prices: pd.DataFrame) -> tuple[str, str]:
+    if prices is None or prices.empty or "Date" not in prices.columns:
+        return "", ""
+    dates = pd.to_datetime(prices["Date"], errors="coerce").dropna()
+    if dates.empty:
+        return "", ""
+    return dates.min().strftime("%Y-%m-%d"), dates.max().strftime("%Y-%m-%d")
+
+
+def _smoke_cache_status(before: dict[str, Any], after: dict[str, Any], warnings: list[str]) -> str:
+    if any("fallback to cache" in warning for warning in warnings):
+        return "fallback_to_cache"
+    if before.get("cache_exists"):
+        return "cache_hit_or_refresh"
+    if after.get("cache_exists"):
+        return "cache_created"
+    return "cache_miss"

@@ -280,6 +280,8 @@ For first-run smoke testing, the dashboard has an explicit `Use bundled fake/dem
 
 Before configured Yahoo loading runs, the dashboard shows a Yahoo startup checklist. It reports `active_source`, yfinance availability, configured tickers, cache directory/file status when an adapter can be built, required and optional local reference coverage, demo reference mode state, manual upload fallback availability, and clear blockers with next steps. The checklist does not call Yahoo or any external network service.
 
+After the startup checklist, the dashboard provides an explicit `Run Yahoo historical smoke test` button. The smoke test uses the configured Yahoo tickers and cache-first adapter behavior, reports tickers tested, rows loaded, date range, cache path/status, warnings, and errors, and is only a historical connectivity/cache check. It is not realtime, not data-completeness validation, and not investment advice.
+
 For Thailand-focused Yahoo loading, local reference files may include a verified `YahooTicker`, `Yahoo_Ticker`, `YahooSymbol`, or `Yahoo_Symbol` column. The dashboard can use these local fields to generate a Yahoo ticker list for an eligible Thailand domestic universe. Missing Yahoo ticker formats are reported and skipped; the app does not infer or invent exchange suffixes.
 
 ```powershell

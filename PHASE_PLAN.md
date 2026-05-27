@@ -1,8 +1,8 @@
 # Phase Plan
 
-Current implementation focus: first-run usability is complete through Phase 7C only.
+Current implementation focus: first-run usability is complete through Phase 7D only.
 
-The Yahoo-first transition is complete through Phase 6F. Phase 7A, 7B, and 7C first-run usability work are complete. The system supports configured CSV/manual data, optional Yahoo historical OHLCV loading, local reference-driven metadata/universe/mapping workflows, explicit Yahoo cache controls, opt-in research backtests from configured historical prices, missing-yfinance diagnostics, explicit runtime demo reference bootstrap mode, and a Yahoo startup checklist before configured loading.
+The Yahoo-first transition is complete through Phase 6F. Phase 7A, 7B, 7C, and 7D first-run usability work are complete. The system supports configured CSV/manual data, optional Yahoo historical OHLCV loading, local reference-driven metadata/universe/mapping workflows, explicit Yahoo cache controls, opt-in research backtests from configured historical prices, missing-yfinance diagnostics, explicit runtime demo reference bootstrap mode, a Yahoo startup checklist before configured loading, and an explicit Yahoo historical smoke test.
 
 ## Completed Milestones
 
@@ -16,6 +16,7 @@ The Yahoo-first transition is complete through Phase 6F. Phase 7A, 7B, and 7C fi
 - First-run Yahoo dependency diagnostics for missing `yfinance`.
 - Explicit dashboard demo reference mode maps missing local reference paths to bundled fake/sample files at runtime only.
 - Yahoo startup checklist reports active source, yfinance availability, configured tickers, cache status, reference coverage, demo mode state, manual fallback availability, and actionable blockers.
+- Yahoo historical smoke test uses configured tickers and cache-first behavior and reports rows loaded, date range, cache status, warnings, and errors.
 
 ## Current Constraints
 
@@ -28,17 +29,16 @@ The Yahoo-first transition is complete through Phase 6F. Phase 7A, 7B, and 7C fi
 
 ## Recommended Next Work
 
-### Phase 7D: One-Click Yahoo Smoke Test
+### Phase 7E: Production Reference Readiness
 
-Goal: add a controlled Yahoo historical smoke test button using configured tickers and cache-first behavior.
+Goal: document and validate what must be replaced before production research use, without inventing mappings or classifications.
 
 Expected scope:
-- Use configured tickers and current Yahoo runtime options.
-- Use cache-first behavior by default.
-- Avoid repeated downloads on Streamlit reruns.
-- Show attempted tickers, rows loaded, date range, partial ticker warnings, cache/fallback status.
-- If yfinance is missing or tickers are empty, show existing checklist blockers/fix guidance instead of attempting the smoke test.
-- Do not add Phase 7E production readiness.
+- Add a production reference readiness checklist for metadata, sector/country maps, Thailand universe, security types, liquidity, DR/DRx mapping, DR quality inputs, FX, and underlying prices.
+- Validate required columns and report missing columns clearly.
+- Keep demo mode separate and clearly labeled.
+- Do not infer Thai Yahoo suffixes, DR underlyings, sectors, countries, or security types.
+- Do not add Phase 7F finalization.
 - Keep tests network-free.
 
 ### Production-Data Readiness

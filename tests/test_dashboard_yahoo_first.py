@@ -20,6 +20,7 @@ from src.startup_diagnostics import (
     STREAMLIT_VENV_RUN_COMMAND,
     YFINANCE_INSTALL_COMMAND,
     build_yahoo_startup_checklist,
+    run_yahoo_historical_smoke_test,
     startup_checklist_has_blockers,
     yfinance_missing_guidance,
 )
@@ -217,3 +218,49 @@ def test_yahoo_startup_checklist_warns_for_demo_reference_mode():
     assert not startup_checklist_has_blockers(rows)
     assert any(row.item == "Required production references" and row.status == "warning" for row in rows)
     assert any(row.item == "Demo reference mode" and row.status == "warning" and "fake/sample" in row.detail for row in rows)
+
+
+def test_yahoo_historical_smoke_test_summarizes_cache_first_success(tmp_path):
+    class FakeYFinance:
+        calls = 0
+
+        def download(self, **kwargs):
+            self.calls += 1
+            return pd.DataFrame(
+                {
+                    "Open": [1.0, 2.0],
+                    "High": [1.0, 2.0],
+                    "Low": [1.0, 2.0],
+                    "Close": [1.0, 2.0],
+                    "Volume": [100, 200],
+                },
+                index=pd.to_datetime(["2026-01-01", "2026-01-02"]),
+            )
+
+    yf = FakeYFinance()
+    adapter = YahooDataAdapter(["AAA"], cache_dir=tmp_path, cache_format="csv", yfinance_module=yf)
+
+    first = run_yahoo_historical_smoke_test(adapter)
+    second = run_yahoo_historical_smoke_test(adapter)
+
+    assert first.attempted_tickers == ("AAA",)
+    assert first.rows_loaded == 2
+    assert first.start_date == "2026-01-01"
+    assert first.end_date == "2026-01-02"
+    assert first.cache_status == "cache_created"
+    assert second.cache_exists_before is True
+    assert yf.calls == 1
+
+
+def test_yahoo_historical_smoke_test_reports_error_without_raising(tmp_path):
+    class FakeYFinance:
+        def download(self, **kwargs):
+            raise RuntimeError("network disabled in test")
+
+    adapter = YahooDataAdapter(["AAA"], cache_dir=tmp_path, cache_format="csv", yfinance_module=FakeYFinance())
+
+    result = run_yahoo_historical_smoke_test(adapter)
+
+    assert result.rows_loaded == 0
+    assert "network disabled in test" in result.error
+    assert result.cache_status == "cache_miss"
