@@ -68,11 +68,21 @@ def test_config_driven_pipeline_with_mocked_yahoo_and_local_metadata():
     assert "reference_data_report" in outputs
 
 
-def test_pipeline_skips_sector_and_dr_when_reference_missing():
+def test_pipeline_skips_sector_and_dr_when_reference_missing(tmp_path):
     prices = _mock_prices(["DEMO_US_EQUITY_ETF", "DEMO_MISSING"])
     adapter = MockYahooHybridAdapter(prices, metadata_path=None, dr_mapping=None)
+    config_path = tmp_path / "data_sources.yaml"
+    config_path.write_text(
+        "active_source: yahoo\n"
+        "source_settings:\n"
+        "  yahoo:\n"
+        "    tickers:\n"
+        "      - DEMO_US_EQUITY_ETF\n"
+        "      - DEMO_MISSING\n",
+        encoding="utf-8",
+    )
 
-    outputs = run_pipeline_from_config(adapter=adapter)
+    outputs = run_pipeline_from_config(config_path=str(config_path), adapter=adapter)
 
     assert outputs["sector_breadth_summary"].empty
     assert "DR quality skipped" in outputs["dr_quality_ranking"]["data_quality_warning"].iloc[0]
