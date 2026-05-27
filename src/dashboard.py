@@ -14,6 +14,7 @@ from src.data_adapters.csv_adapter import CsvDataAdapter
 from src.data_adapters.yahoo_adapter import YahooDataAdapter
 from src.data_loader import pivot_prices, pivot_volume
 from src.report_generator import build_daily_report
+from src.startup_diagnostics import check_yfinance_available, yfinance_missing_guidance
 from src.topdown_pipeline import run_pipeline_from_config, run_topdown_pipeline
 from src.thailand_reference import load_thailand_liquidity, load_thailand_universe
 from src.yahoo_universe import build_thailand_domestic_yahoo_ticker_universe
@@ -82,6 +83,11 @@ def disable_yahoo_force_refresh(config: dict) -> dict:
     return result
 
 
+def yahoo_dependency_diagnostic(find_spec=None):
+    """Return yfinance availability for the active dashboard Python runtime."""
+    return check_yfinance_available() if find_spec is None else check_yfinance_available(find_spec=find_spec)
+
+
 def main() -> None:
     """Run the Streamlit research dashboard."""
     st.set_page_config(page_title="Market Regime Flow System", layout="wide")
@@ -130,6 +136,13 @@ def main() -> None:
         adapter = get_data_adapter(config)
         if isinstance(adapter, YahooDataAdapter):
             st.sidebar.info("Yahoo mode uses historical yfinance data only. It is not realtime.")
+            yahoo_dependency = yahoo_dependency_diagnostic()
+            if yahoo_dependency.importable:
+                st.sidebar.success(yahoo_dependency.summary)
+            else:
+                st.sidebar.error(yahoo_dependency.summary)
+                st.error(yfinance_missing_guidance(yahoo_dependency))
+                return
             yahoo_universe_source = st.sidebar.selectbox(
                 "Yahoo ticker universe",
                 ["Configured Yahoo tickers", "Local Thailand domestic universe"],

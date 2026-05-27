@@ -10,10 +10,12 @@ from src.dashboard import (
     apply_yahoo_ticker_universe,
     dashboard_source_options,
     disable_yahoo_force_refresh,
+    yahoo_dependency_diagnostic,
     yahoo_cache_token,
     yahoo_cache_status,
 )
 from src.data_adapters.yahoo_adapter import YahooDataAdapter
+from src.startup_diagnostics import STREAMLIT_VENV_RUN_COMMAND, YFINANCE_INSTALL_COMMAND, yfinance_missing_guidance
 
 
 def test_dashboard_source_options_default_to_config_source():
@@ -91,3 +93,23 @@ def test_disable_yahoo_force_refresh_does_not_mutate_config():
 
     assert result["source_settings"]["yahoo"]["force_refresh"] is False
     assert config["source_settings"]["yahoo"]["force_refresh"] is True
+
+
+def test_yahoo_dependency_diagnostic_reports_available_with_mock():
+    diagnostic = yahoo_dependency_diagnostic(find_spec=lambda package: object() if package == "yfinance" else None)
+
+    assert diagnostic.importable is True
+    assert diagnostic.package == "yfinance"
+    assert diagnostic.fix_commands == ()
+
+
+def test_yahoo_dependency_diagnostic_reports_missing_with_actionable_commands():
+    diagnostic = yahoo_dependency_diagnostic(find_spec=lambda package: None)
+
+    assert diagnostic.importable is False
+    assert YFINANCE_INSTALL_COMMAND in diagnostic.fix_commands
+    assert STREAMLIT_VENV_RUN_COMMAND in diagnostic.fix_commands
+    guidance = yfinance_missing_guidance(diagnostic)
+    assert "Yahoo historical loading is unavailable" in guidance
+    assert YFINANCE_INSTALL_COMMAND in guidance
+    assert STREAMLIT_VENV_RUN_COMMAND in guidance
