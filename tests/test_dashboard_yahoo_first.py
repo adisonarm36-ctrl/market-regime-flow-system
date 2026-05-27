@@ -16,7 +16,13 @@ from src.dashboard import (
     yahoo_cache_status,
 )
 from src.data_adapters.yahoo_adapter import YahooDataAdapter
-from src.startup_diagnostics import STREAMLIT_VENV_RUN_COMMAND, YFINANCE_INSTALL_COMMAND, yfinance_missing_guidance
+from src.startup_diagnostics import (
+    STREAMLIT_VENV_RUN_COMMAND,
+    YFINANCE_INSTALL_COMMAND,
+    build_yahoo_startup_checklist,
+    startup_checklist_has_blockers,
+    yfinance_missing_guidance,
+)
 
 
 def test_dashboard_source_options_default_to_config_source():
@@ -136,3 +142,78 @@ def test_yahoo_dependency_diagnostic_reports_missing_with_actionable_commands():
     assert "Yahoo historical loading is unavailable" in guidance
     assert YFINANCE_INSTALL_COMMAND in guidance
     assert STREAMLIT_VENV_RUN_COMMAND in guidance
+
+
+def test_yahoo_startup_checklist_reports_healthy_config(tmp_path):
+    metadata = tmp_path / "metadata.csv"
+    sector = tmp_path / "sector.csv"
+    country = tmp_path / "country.csv"
+    for path in [metadata, sector, country]:
+        path.write_text("Ticker,Value\n", encoding="utf-8")
+    config = {
+        "active_source": "yahoo",
+        "source_settings": {
+            "yahoo": {
+                "tickers": ["AAA", "BBB"],
+                "cache_dir": str(tmp_path / "cache"),
+                "reference_data": {
+                    "metadata_path": str(metadata),
+                    "sector_map_path": str(sector),
+                    "country_map_path": str(country),
+                },
+            }
+        },
+    }
+    diagnostic = yahoo_dependency_diagnostic(find_spec=lambda package: object())
+    cache_status = {
+        "cache_path": str(tmp_path / "cache" / "prices.csv"),
+        "cache_exists": True,
+        "cache_is_stale": False,
+    }
+
+    rows = build_yahoo_startup_checklist(config, diagnostic, cache_status=cache_status)
+
+    assert not startup_checklist_has_blockers(rows)
+    assert any(row.item == "Configured Yahoo tickers" and row.status == "ok" for row in rows)
+    assert any(row.item == "Required production references" and row.status == "ok" for row in rows)
+    assert any(row.item == "Manual upload fallback" and row.status == "ok" for row in rows)
+
+
+def test_yahoo_startup_checklist_blocks_missing_yfinance_and_tickers(tmp_path):
+    config = {
+        "active_source": "yahoo",
+        "source_settings": {"yahoo": {"tickers": [], "cache_dir": str(tmp_path), "reference_data": {}}},
+    }
+    diagnostic = yahoo_dependency_diagnostic(find_spec=lambda package: None)
+
+    rows = build_yahoo_startup_checklist(config, diagnostic)
+
+    blockers = [row for row in rows if row.status == "blocker"]
+    assert startup_checklist_has_blockers(rows)
+    assert any(row.item == "Configured Yahoo tickers" for row in blockers)
+    assert any(row.item == "yfinance availability" for row in blockers)
+    assert any(row.item == "Yahoo data loading" for row in blockers)
+
+
+def test_yahoo_startup_checklist_warns_for_demo_reference_mode():
+    config = {
+        "active_source": "yahoo",
+        "source_settings": {
+            "yahoo": {
+                "tickers": ["AAA"],
+                "cache_dir": "data/cache/yahoo",
+                "reference_data": {
+                    "metadata_path": "data/reference/metadata.csv",
+                    "sector_map_path": "data/reference/sector_map.csv",
+                    "country_map_path": "data/reference/country_map.csv",
+                },
+            }
+        },
+    }
+    diagnostic = yahoo_dependency_diagnostic(find_spec=lambda package: object())
+
+    rows = build_yahoo_startup_checklist(config, diagnostic, demo_reference_enabled=True)
+
+    assert not startup_checklist_has_blockers(rows)
+    assert any(row.item == "Required production references" and row.status == "warning" for row in rows)
+    assert any(row.item == "Demo reference mode" and row.status == "warning" and "fake/sample" in row.detail for row in rows)

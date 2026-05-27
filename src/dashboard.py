@@ -19,7 +19,13 @@ from src.data_adapters.csv_adapter import CsvDataAdapter
 from src.data_adapters.yahoo_adapter import YahooDataAdapter
 from src.data_loader import pivot_prices, pivot_volume
 from src.report_generator import build_daily_report
-from src.startup_diagnostics import check_yfinance_available, yfinance_missing_guidance
+from src.startup_diagnostics import (
+    StartupChecklistRow,
+    build_yahoo_startup_checklist,
+    check_yfinance_available,
+    startup_checklist_has_blockers,
+    yfinance_missing_guidance,
+)
 from src.topdown_pipeline import run_pipeline_from_config, run_topdown_pipeline
 from src.thailand_reference import load_thailand_liquidity, load_thailand_universe
 from src.yahoo_universe import build_thailand_domestic_yahoo_ticker_universe
@@ -100,6 +106,13 @@ def yahoo_dependency_diagnostic(find_spec=None):
     return check_yfinance_available() if find_spec is None else check_yfinance_available(find_spec=find_spec)
 
 
+def _safe_get_data_adapter(config: dict):
+    try:
+        return get_data_adapter(config)
+    except Exception as exc:
+        return exc
+
+
 def main() -> None:
     """Run the Streamlit research dashboard."""
     st.set_page_config(page_title="Market Regime Flow System", layout="wide")
@@ -158,7 +171,11 @@ def main() -> None:
         runtime_config, demo_reference_warnings = apply_demo_reference_runtime_config(config, use_demo_reference_data)
         for warning in demo_reference_warnings:
             st.warning(warning)
-        adapter = get_data_adapter(runtime_config)
+        adapter = _safe_get_data_adapter(runtime_config)
+        adapter_error = None
+        if isinstance(adapter, Exception):
+            adapter_error = str(adapter)
+            adapter = None
         if isinstance(adapter, YahooDataAdapter):
             st.sidebar.info("Yahoo mode uses historical yfinance data only. It is not realtime.")
             yahoo_dependency = yahoo_dependency_diagnostic()
@@ -166,8 +183,6 @@ def main() -> None:
                 st.sidebar.success(yahoo_dependency.summary)
             else:
                 st.sidebar.error(yahoo_dependency.summary)
-                st.error(yfinance_missing_guidance(yahoo_dependency))
-                return
             yahoo_universe_source = st.sidebar.selectbox(
                 "Yahoo ticker universe",
                 ["Configured Yahoo tickers", "Local Thailand domestic universe"],
@@ -211,6 +226,30 @@ def main() -> None:
             else:
                 st.sidebar.warning("Yahoo cache file is not available yet.")
             yahoo_cache_marker = yahoo_cache_token(adapter)
+            startup_rows = build_yahoo_startup_checklist(
+                config,
+                yfinance_diagnostic=yahoo_dependency,
+                cache_status=cache_status,
+                demo_reference_enabled=use_demo_reference_data,
+                manual_upload_available=True,
+                adapter_error=adapter_error,
+            )
+            _show_startup_checklist(startup_rows)
+            if startup_checklist_has_blockers(startup_rows):
+                st.error("Configured Yahoo startup has blockers. Resolve the checklist items or use Advanced / fallback manual upload.")
+                return
+        elif runtime_config.get("active_source") == "yahoo":
+            yahoo_dependency = yahoo_dependency_diagnostic()
+            startup_rows = build_yahoo_startup_checklist(
+                config,
+                yfinance_diagnostic=yahoo_dependency,
+                demo_reference_enabled=use_demo_reference_data,
+                manual_upload_available=True,
+                adapter_error=adapter_error,
+            )
+            _show_startup_checklist(startup_rows)
+            st.error("Configured Yahoo startup has blockers. Resolve the checklist items or use Advanced / fallback manual upload.")
+            return
         else:
             yahoo_refresh_requested = False
             yahoo_cache_marker = ""
@@ -377,6 +416,23 @@ def _show_table(title: str, table: pd.DataFrame | None) -> None:
         st.warning("No data available for this layer. Missing data is skipped.")
         return
     st.dataframe(table, use_container_width=True)
+
+
+def _show_startup_checklist(rows: list[StartupChecklistRow]) -> None:
+    st.subheader("Yahoo Startup Checklist")
+    if not rows:
+        st.info("No startup checklist rows available.")
+        return
+    table = pd.DataFrame([row.__dict__ for row in rows])
+    st.dataframe(table, use_container_width=True)
+    for row in rows:
+        message = f"{row.item}: {row.detail}"
+        if row.next_step:
+            message = f"{message} Next step: {row.next_step}"
+        if row.status == "blocker":
+            st.error(message)
+        elif row.status == "warning":
+            st.warning(message)
 
 
 def build_backtest_dashboard_tables(outputs: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
