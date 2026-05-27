@@ -1,45 +1,46 @@
 # Phase Plan
 
-Current implementation focus: Phase 5B backtesting workflow.
+Current implementation focus: no active feature phase.
 
-## Phase 5B-1: Backtest Core Engine and Risk Throttle
+The Yahoo-first transition is complete through Phase 6F. The system supports configured CSV/manual data, optional Yahoo historical OHLCV loading, local reference-driven metadata/universe/mapping workflows, explicit Yahoo cache controls, and opt-in research backtests from configured historical prices.
 
-Goal: add a reusable backtest engine for research signals without producing financial advice.
+## Completed Milestones
+
+- Core data loading, validation, returns, flow proxy, breadth, sector, clustering, momentum, redundancy, and dashboard/report outputs.
+- Adapter architecture with CSV/manual upload and Yahoo historical/cache-first adapter.
+- Hybrid Yahoo + local reference workflow for metadata, sector/country maps, asset maps, Thailand universes, and DR/DRx mappings.
+- Thailand domestic breadth exclusions for DR/DRx/DW/ETF/warrant/suspended/illiquid rows.
+- DR fair value, FX-adjusted tracking, local liquidity, bid/ask spread, and execution-quality research reports when local inputs exist.
+- Yahoo-first dashboard source UX, config validation, local-reference Yahoo ticker selection, refresh/cache controls, stale/fallback warnings, and rerun-safe cache behavior.
+- Opt-in backtest/risk throttle workflow using configured historical prices, including Yahoo-loaded history, with research-assumption labels and data coverage warnings.
+
+## Current Constraints
+
+- Do not invent market data, tickers, mappings, sectors, countries, liquidity, fair values, or security classifications.
+- Do not add realtime feeds, scraping, API keys, broker integration, or live trading.
+- Preserve CSV and manual upload fallback.
+- Keep Yahoo historical/cache-based only.
+- Keep local reference files as the source of truth for metadata, Thailand universe, DR/DRx mapping, security type, sector/country maps, and local DR quality data.
+- Keep outputs labeled as research signals or research assumptions only.
+
+## Recommended Next Work
+
+### Production-Data Readiness
+
+Goal: prepare the existing research workflow for real local data without adding new live data capabilities.
 
 Expected scope:
-- Signal-to-position simulation using configured research signals.
-- Portfolio and instrument return calculation from adjusted close where available.
-- Risk throttle rules such as max exposure, volatility filter, drawdown guard, and cash allocation.
-- Metrics including total return, volatility, max drawdown, hit rate, turnover, and exposure.
-- Tests for return alignment, risk throttle behavior, missing data handling, and metrics.
+- Inventory fake/demo sample files and identify verified local replacements needed for research use.
+- Validate real local Thailand universe, security type, liquidity, sector/industry, and DR/DRx mapping files.
+- Validate local metadata and Yahoo ticker fields without inferring missing symbols.
+- Confirm cache behavior and manual fallback instructions remain clear.
+- Add tests only when validation behavior changes.
 
-## Phase 5B-2: Backtest Integration with Topdown Pipeline
+### Documentation Maintenance
 
-Goal: connect backtest inputs and outputs to the existing top-down research pipeline.
-
-Expected scope:
-- Use existing country, sector, cluster, stock, DR, and redundancy outputs as signal inputs.
-- Keep Thailand domestic breadth separate from DR/foreign proxy instruments.
-- Treat DR signals as underlying-driven and execution quality as local DR-driven.
-- Report missing data clearly and skip affected layers.
-- Tests for pipeline integration, DR separation, and missing-data behavior.
-
-## Phase 5B-3: Backtest Dashboard and Report Export
-
-Goal: expose backtest results in Streamlit and daily exports.
+Goal: keep project handoff files aligned with implemented behavior.
 
 Expected scope:
-- Add dashboard views for backtest summary, risk throttle state, exposures, and performance metrics.
-- Export CSV and HTML report sections.
-- Label all outputs as research signals, not advice.
-- Include the metrics behind every conclusion.
-- Tests or smoke checks for export generation and dashboard data preparation.
-
-## Constraints Across Phase 5B
-
-- Do not invent market data.
-- Do not hardcode fake financial data except in tests.
-- Use config files for thresholds, universes, and mappings.
-- Preserve CSV loading and configured adapter behavior.
-- Do not mix DR/DRx into Thailand domestic breadth.
-- Keep implementation modular and covered by focused pytest tests.
+- Update `README.md`, `PROJECT_STATUS.md`, `RUN_STATE.md`, and this plan after meaningful workflow changes.
+- Keep test commands and known Windows pytest cache warning documented.
+- Avoid claiming unsupported realtime, broker, scraping, API-key, or advice functionality.
