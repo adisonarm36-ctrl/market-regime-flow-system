@@ -21,8 +21,10 @@ from src.data_loader import pivot_prices, pivot_volume
 from src.report_generator import build_daily_report
 from src.startup_diagnostics import (
     StartupChecklistRow,
+    YahooSmokeTestResult,
     build_yahoo_startup_checklist,
     check_yfinance_available,
+    run_yahoo_historical_smoke_test,
     startup_checklist_has_blockers,
     yfinance_missing_guidance,
 )
@@ -235,6 +237,7 @@ def main() -> None:
                 adapter_error=adapter_error,
             )
             _show_startup_checklist(startup_rows)
+            _show_yahoo_smoke_test_control(pipeline_config=disable_yahoo_force_refresh(runtime_config), startup_rows=startup_rows)
             if startup_checklist_has_blockers(startup_rows):
                 st.error("Configured Yahoo startup has blockers. Resolve the checklist items or use Advanced / fallback manual upload.")
                 return
@@ -435,6 +438,45 @@ def _show_startup_checklist(rows: list[StartupChecklistRow]) -> None:
             st.warning(message)
 
 
+def _show_yahoo_smoke_test_control(pipeline_config: dict, startup_rows: list[StartupChecklistRow]) -> None:
+    st.subheader("Yahoo Historical Smoke Test")
+    st.info("Historical Yahoo OHLCV smoke test only. Not realtime, not data completeness validation, and not investment advice.")
+    hard_blockers = {"Configured Yahoo tickers", "yfinance availability", "Yahoo adapter config", "Yahoo data loading", "Yahoo cache directory"}
+    smoke_blockers = [row for row in startup_rows if row.status == "blocker" and row.item in hard_blockers]
+    if smoke_blockers:
+        for row in smoke_blockers:
+            st.warning(f"Smoke test blocked: {row.item}. {row.next_step or row.detail}")
+        return
+    if st.button("Run Yahoo historical smoke test"):
+        result = _run_yahoo_smoke_test_once(pipeline_config, _smoke_test_cache_token(pipeline_config))
+        _show_yahoo_smoke_test_result(result)
+
+
+def _show_yahoo_smoke_test_result(result: YahooSmokeTestResult) -> None:
+    table = pd.DataFrame(
+        [
+            {
+                "tickers_tested": ", ".join(result.attempted_tickers),
+                "rows_loaded": result.rows_loaded,
+                "start_date": result.start_date,
+                "end_date": result.end_date,
+                "cache_path": result.cache_path,
+                "cache_exists_before": result.cache_exists_before,
+                "cache_exists_after": result.cache_exists_after,
+                "cache_status": result.cache_status,
+                "error": result.error,
+            }
+        ]
+    )
+    _show_table("Yahoo Smoke Test Result", table)
+    for warning in result.warnings:
+        st.warning(warning)
+    if result.error:
+        st.error(result.error)
+    elif result.rows_loaded > 0:
+        st.success("Yahoo historical smoke test loaded cached or historical OHLCV rows.")
+
+
 def build_backtest_dashboard_tables(outputs: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
     """Build report-ready dashboard tables for backtest outputs."""
     tables = {
@@ -547,6 +589,18 @@ def _safe_adapter_load(loader, label: str) -> pd.DataFrame | None:
     except NotImplementedError as exc:
         st.warning(str(exc))
         return None
+
+
+def _smoke_test_cache_token(config: dict) -> str:
+    try:
+        return yahoo_cache_token(get_data_adapter(config))
+    except Exception:
+        return ""
+
+
+@st.cache_data(show_spinner=False)
+def _run_yahoo_smoke_test_once(config: dict, cache_token: str = "") -> YahooSmokeTestResult:
+    return run_yahoo_historical_smoke_test(get_data_adapter(config))
 
 
 if __name__ == "__main__":
