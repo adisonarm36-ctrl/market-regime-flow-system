@@ -1,8 +1,8 @@
 # Phase Plan
 
-Current implementation focus: no active feature phase.
+Current implementation focus: first-run usability is complete through Phase 7B only.
 
-The Yahoo-first transition is complete through Phase 6F. The system supports configured CSV/manual data, optional Yahoo historical OHLCV loading, local reference-driven metadata/universe/mapping workflows, explicit Yahoo cache controls, and opt-in research backtests from configured historical prices.
+The Yahoo-first transition is complete through Phase 6F. Phase 7A and 7B first-run usability work are complete. The system supports configured CSV/manual data, optional Yahoo historical OHLCV loading, local reference-driven metadata/universe/mapping workflows, explicit Yahoo cache controls, opt-in research backtests from configured historical prices, missing-yfinance diagnostics, and explicit runtime demo reference bootstrap mode.
 
 ## Completed Milestones
 
@@ -13,6 +13,8 @@ The Yahoo-first transition is complete through Phase 6F. The system supports con
 - DR fair value, FX-adjusted tracking, local liquidity, bid/ask spread, and execution-quality research reports when local inputs exist.
 - Yahoo-first dashboard source UX, config validation, local-reference Yahoo ticker selection, refresh/cache controls, stale/fallback warnings, and rerun-safe cache behavior.
 - Opt-in backtest/risk throttle workflow using configured historical prices, including Yahoo-loaded history, with research-assumption labels and data coverage warnings.
+- First-run Yahoo dependency diagnostics for missing `yfinance`.
+- Explicit dashboard demo reference mode maps missing local reference paths to bundled fake/sample files at runtime only.
 
 ## Current Constraints
 
@@ -24,6 +26,17 @@ The Yahoo-first transition is complete through Phase 6F. The system supports con
 - Keep outputs labeled as research signals or research assumptions only.
 
 ## Recommended Next Work
+
+### Phase 7C: Yahoo-First Startup Checklist
+
+Goal: show a clear startup checklist in the dashboard before attempting the full pipeline.
+
+Expected scope:
+- Include active source, yfinance availability, configured tickers, cache directory, reference file coverage, missing references, demo mode state, and manual upload fallback availability.
+- Separate blockers from warnings.
+- Keep missing production references visible.
+- Do not add the Phase 7D Yahoo smoke test.
+- Keep tests network-free.
 
 ### Production-Data Readiness
 

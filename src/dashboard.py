@@ -7,7 +7,12 @@ import pandas as pd
 import streamlit as st
 
 from src.backtest import BacktestConfig
-from src.config_validation import validate_data_sources_config, validate_metadata_schema
+from src.config_validation import (
+    DEMO_REFERENCE_MODE_WARNING,
+    apply_demo_reference_mode,
+    validate_data_sources_config,
+    validate_metadata_schema,
+)
 from src.config_loader import load_yaml
 from src.data_adapters import get_data_adapter
 from src.data_adapters.csv_adapter import CsvDataAdapter
@@ -83,6 +88,13 @@ def disable_yahoo_force_refresh(config: dict) -> dict:
     return result
 
 
+def apply_demo_reference_runtime_config(config: dict, enabled: bool) -> tuple[dict, list[str]]:
+    """Apply demo reference paths to a runtime config copy when explicitly enabled."""
+    if not enabled:
+        return deepcopy(config), []
+    return apply_demo_reference_mode(config)
+
+
 def yahoo_dependency_diagnostic(find_spec=None):
     """Return yfinance availability for the active dashboard Python runtime."""
     return check_yfinance_available() if find_spec is None else check_yfinance_available(find_spec=find_spec)
@@ -100,6 +112,17 @@ def main() -> None:
         st.header("Data Source")
         st.caption("Default path: configured historical source. Manual CSV upload is an advanced fallback.")
         st.write(active_source_label(config))
+        use_demo_reference_data = False
+        demo_reference_warnings: list[str] = []
+        if config is not None:
+            use_demo_reference_data = st.checkbox(
+                "Use bundled fake/demo reference files",
+                value=False,
+                help="Maps missing local reference paths to bundled fake/sample files for first-run smoke testing only.",
+            )
+            if use_demo_reference_data:
+                st.warning(DEMO_REFERENCE_MODE_WARNING)
+                st.caption("Production reference paths remain configured in data_sources.yaml; demo mode only changes this dashboard run.")
         if config is not None:
             for warning in validate_data_sources_config(config):
                 st.warning(warning)
@@ -132,8 +155,10 @@ def main() -> None:
         if config is None:
             st.error("Could not load config/data_sources.yaml. Use Advanced / fallback manual upload if needed.")
             return
-        runtime_config = config
-        adapter = get_data_adapter(config)
+        runtime_config, demo_reference_warnings = apply_demo_reference_runtime_config(config, use_demo_reference_data)
+        for warning in demo_reference_warnings:
+            st.warning(warning)
+        adapter = get_data_adapter(runtime_config)
         if isinstance(adapter, YahooDataAdapter):
             st.sidebar.info("Yahoo mode uses historical yfinance data only. It is not realtime.")
             yahoo_dependency = yahoo_dependency_diagnostic()
@@ -152,7 +177,7 @@ def main() -> None:
             yahoo_fallback_to_cache = st.sidebar.checkbox("Fallback to stale cache if Yahoo fetch fails", value=adapter.fallback_to_cache)
             yahoo_refresh_requested = st.sidebar.button("Refresh Yahoo historical data")
             runtime_config = apply_yahoo_runtime_options(
-                config,
+                runtime_config,
                 fallback_to_cache=yahoo_fallback_to_cache,
                 force_refresh=yahoo_refresh_requested,
             )
@@ -454,7 +479,7 @@ def _run_config_pipeline_once(
     refresh_requested: bool = False,
     cache_token: str = "",
 ) -> dict[str, pd.DataFrame]:
-    return run_pipeline_from_config(adapter=get_data_adapter(config), backtest_enabled=backtest_enabled, backtest_config=backtest_config)
+    return run_pipeline_from_config(config_path=config, adapter=get_data_adapter(config), backtest_enabled=backtest_enabled, backtest_config=backtest_config)
 
 
 def _safe_adapter_load(loader, label: str) -> pd.DataFrame | None:

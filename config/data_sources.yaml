@@ -43,6 +43,8 @@ source_settings:
     cache_ttl_hours: 8
     fallback_to_cache: true
     reference_data:
+      # Production paths remain strict. The dashboard's explicit demo reference
+      # toggle can map missing paths to *_sample files at runtime only.
       metadata_path: data/reference/metadata.csv
       sector_map_path: data/reference/sector_map.csv
       country_map_path: data/reference/country_map.csv

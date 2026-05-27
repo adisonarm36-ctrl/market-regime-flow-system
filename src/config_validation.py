@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from copy import deepcopy
 
 import pandas as pd
 
@@ -8,6 +9,22 @@ import pandas as pd
 KNOWN_SECURITY_TYPES = {"Stock", "DR", "DRx", "DW", "ETF", "warrant", "Warrant"}
 SUPPORTED_YAHOO_INTERVALS = {"1d", "5d", "1wk", "1mo", "3mo"}
 SUPPORTED_YAHOO_CACHE_FORMATS = {"csv", "parquet"}
+DEMO_REFERENCE_MODE_WARNING = "Demo reference files are fake/sample data and are not suitable for production research."
+DEMO_REFERENCE_PATHS = {
+    "metadata_path": "data/reference/metadata_sample.csv",
+    "sector_map_path": "data/reference/sector_map_sample.csv",
+    "country_map_path": "data/reference/country_map_sample.csv",
+    "thailand_universe_path": "data/reference/thailand/thailand_universe_sample.csv",
+    "thailand_sector_map_path": "data/reference/thailand/thailand_sector_map_sample.csv",
+    "thailand_security_types_path": "data/reference/thailand/thailand_security_types_sample.csv",
+    "thailand_liquidity_path": "data/reference/thailand/thailand_liquidity_sample.csv",
+    "thailand_dr_mapping_path": "data/reference/thailand/thailand_dr_mapping_sample.csv",
+    "dr_market_data_path": "data/reference/thailand/dr_quality/dr_market_data_sample.csv",
+    "dr_bid_ask_path": "data/reference/thailand/dr_quality/dr_bid_ask_sample.csv",
+    "dr_fair_value_inputs_path": "data/reference/thailand/dr_quality/dr_fair_value_inputs_sample.csv",
+    "fx_rates_path": "data/reference/thailand/dr_quality/fx_rates_sample.csv",
+    "underlying_prices_path": "data/reference/thailand/dr_quality/underlying_prices_sample.csv",
+}
 REQUIRED_METADATA_COLUMNS = [
     "Ticker",
     "SecurityType",
@@ -140,6 +157,28 @@ def validate_yahoo_source_config(yahoo_config: dict) -> list[str]:
         elif not Path(value).exists():
             warnings.append(f"Yahoo config local {label} reference path not found: {value}")
     return warnings
+
+
+def apply_demo_reference_mode(config: dict, source_name: str | None = None) -> tuple[dict, list[str]]:
+    """Map missing configured reference paths to bundled fake/demo sample files.
+
+    The returned config is a runtime copy. The input config is never mutated and
+    production paths that exist on disk are preserved.
+    """
+    result = deepcopy(config)
+    active_source = source_name or result.get("active_source", "csv")
+    settings = result.setdefault("source_settings", {}).setdefault(active_source, {})
+    reference_data = settings.setdefault("reference_data", {})
+    warnings = [DEMO_REFERENCE_MODE_WARNING]
+
+    for key, demo_path in DEMO_REFERENCE_PATHS.items():
+        current_path = reference_data.get(key)
+        if current_path and Path(current_path).exists():
+            continue
+        if Path(demo_path).exists():
+            reference_data[key] = demo_path
+            warnings.append(f"Demo reference mode mapped {key} to {demo_path}")
+    return result, warnings
 
 
 def validate_data_sources_config(config: dict) -> list[str]:

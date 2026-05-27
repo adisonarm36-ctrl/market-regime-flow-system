@@ -276,13 +276,13 @@ def _add_backtest_outputs(
 
 
 def run_pipeline_from_config(
-    config_path: str = "config/data_sources.yaml",
+    config_path: str | dict = "config/data_sources.yaml",
     adapter=None,
     backtest_enabled: bool = False,
     backtest_config: BacktestConfig | None = None,
 ) -> dict[str, pd.DataFrame]:
     """Run the top-down pipeline from configured data source and local reference data."""
-    config = load_yaml(config_path)
+    config = config_path if isinstance(config_path, dict) else load_yaml(config_path)
     adapter = adapter or get_data_adapter(config)
     warnings: list[str] = []
     prices_long = adapter.load_prices()

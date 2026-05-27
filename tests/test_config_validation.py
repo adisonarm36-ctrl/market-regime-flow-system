@@ -1,6 +1,8 @@
 import pandas as pd
 
 from src.config_validation import (
+    DEMO_REFERENCE_MODE_WARNING,
+    apply_demo_reference_mode,
     validate_data_sources_config,
     validate_country_universe,
     validate_dr_underlyings,
@@ -88,3 +90,51 @@ def test_validate_data_sources_config_checks_active_source_and_yahoo_settings():
 
     assert any("active_source not found" in warning for warning in warnings)
     assert any("missing local metadata reference path" in warning for warning in warnings)
+
+
+def test_demo_reference_mode_maps_missing_paths_without_mutating_config():
+    config = {
+        "active_source": "yahoo",
+        "source_settings": {
+            "yahoo": {
+                "reference_data": {
+                    "metadata_path": "data/reference/metadata.csv",
+                    "sector_map_path": "data/reference/sector_map.csv",
+                    "country_map_path": "data/reference/country_map.csv",
+                }
+            }
+        },
+    }
+
+    result, warnings = apply_demo_reference_mode(config)
+
+    reference_data = result["source_settings"]["yahoo"]["reference_data"]
+    assert reference_data["metadata_path"] == "data/reference/metadata_sample.csv"
+    assert reference_data["sector_map_path"] == "data/reference/sector_map_sample.csv"
+    assert reference_data["country_map_path"] == "data/reference/country_map_sample.csv"
+    assert config["source_settings"]["yahoo"]["reference_data"]["metadata_path"] == "data/reference/metadata.csv"
+    assert DEMO_REFERENCE_MODE_WARNING in warnings
+    assert any("metadata_path" in warning for warning in warnings)
+
+
+def test_demo_reference_mode_preserves_existing_production_paths(tmp_path):
+    metadata_path = tmp_path / "metadata.csv"
+    metadata_path.write_text("Ticker,SecurityType,Country,Sector,Industry,Universe,Suspended\n", encoding="utf-8")
+    config = {
+        "active_source": "yahoo",
+        "source_settings": {
+            "yahoo": {
+                "reference_data": {
+                    "metadata_path": str(metadata_path),
+                    "sector_map_path": "data/reference/sector_map.csv",
+                }
+            }
+        },
+    }
+
+    result, warnings = apply_demo_reference_mode(config)
+
+    reference_data = result["source_settings"]["yahoo"]["reference_data"]
+    assert reference_data["metadata_path"] == str(metadata_path)
+    assert reference_data["sector_map_path"] == "data/reference/sector_map_sample.csv"
+    assert DEMO_REFERENCE_MODE_WARNING in warnings
