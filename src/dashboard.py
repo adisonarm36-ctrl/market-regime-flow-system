@@ -45,26 +45,17 @@ def active_source_label(config: dict | None) -> str:
     return f"active_source: {config.get('active_source', 'csv')}"
 
 
-def yahoo_cache_status(adapter: YahooDataAdapter) -> dict[str, str | bool]:
+def yahoo_cache_status(adapter: YahooDataAdapter) -> dict[str, object]:
     """Return report-ready Yahoo cache status without loading data."""
-    cache_path = adapter.cache_path()
-    exists = cache_path.exists()
-    status: dict[str, str | bool] = {
-        "cache_path": str(cache_path),
-        "cache_exists": exists,
-        "cache_last_updated": "",
-    }
-    if exists:
-        modified = pd.Timestamp.fromtimestamp(cache_path.stat().st_mtime)
-        status["cache_last_updated"] = modified.strftime("%Y-%m-%d %H:%M:%S")
-    return status
+    return adapter.cache_metadata()
 
 
-def apply_yahoo_runtime_options(config: dict, fallback_to_cache: bool) -> dict:
+def apply_yahoo_runtime_options(config: dict, fallback_to_cache: bool, force_refresh: bool = False) -> dict:
     """Apply dashboard Yahoo runtime options without mutating loaded config."""
     result = deepcopy(config)
     yahoo_settings = result.setdefault("source_settings", {}).setdefault("yahoo", {})
     yahoo_settings["fallback_to_cache"] = bool(fallback_to_cache)
+    yahoo_settings["force_refresh"] = bool(force_refresh)
     return result
 
 
@@ -72,6 +63,22 @@ def apply_yahoo_ticker_universe(config: dict, yahoo_tickers: list[str]) -> dict:
     """Apply a locally generated Yahoo ticker universe without mutating config."""
     result = deepcopy(config)
     result.setdefault("source_settings", {}).setdefault("yahoo", {})["tickers"] = list(yahoo_tickers)
+    return result
+
+
+def yahoo_cache_token(adapter: YahooDataAdapter) -> str:
+    """Return a cache token that changes when the Yahoo cache file is updated."""
+    cache_path = adapter.cache_path()
+    if not cache_path.exists():
+        return ""
+    return str(cache_path.stat().st_mtime_ns)
+
+
+def disable_yahoo_force_refresh(config: dict) -> dict:
+    """Return a config copy that keeps Yahoo fallback options but restores cache-first loading."""
+    result = deepcopy(config)
+    yahoo_settings = result.setdefault("source_settings", {}).setdefault("yahoo", {})
+    yahoo_settings["force_refresh"] = False
     return result
 
 
@@ -130,10 +137,16 @@ def main() -> None:
             if yahoo_universe_source == "Local Thailand domestic universe":
                 selected_thailand_universe = st.sidebar.selectbox("Thailand universe", ["SET ex-DR", "SET50", "SET100", "mai"])
             yahoo_fallback_to_cache = st.sidebar.checkbox("Fallback to stale cache if Yahoo fetch fails", value=adapter.fallback_to_cache)
-            runtime_config = apply_yahoo_runtime_options(config, fallback_to_cache=yahoo_fallback_to_cache)
+            yahoo_refresh_requested = st.sidebar.button("Refresh Yahoo historical data")
+            runtime_config = apply_yahoo_runtime_options(
+                config,
+                fallback_to_cache=yahoo_fallback_to_cache,
+                force_refresh=yahoo_refresh_requested,
+            )
             if yahoo_universe_source == "Local Thailand domestic universe":
                 runtime_config = _apply_local_thailand_yahoo_universe(runtime_config, selected_thailand_universe)
             adapter = get_data_adapter(runtime_config)
+            cache_status = yahoo_cache_status(adapter)
             st.sidebar.write(
                 {
                     "tickers": adapter.tickers,
@@ -144,17 +157,27 @@ def main() -> None:
                     "cache_dir": str(adapter.cache_dir),
                     "cache_ttl_hours": adapter.cache_ttl_hours,
                     "fallback_to_cache": adapter.fallback_to_cache,
+                    "cache_first": cache_status["cache_first_enabled"],
                 }
             )
-            cache_status = yahoo_cache_status(adapter)
             st.sidebar.write(f"Cache path: `{cache_status['cache_path']}`")
+            if cache_status["cache_first_enabled"]:
+                st.sidebar.success("Cache-first mode is active. Reruns use fresh cache before downloading.")
+            else:
+                st.sidebar.warning("Refresh requested. This run will attempt a historical Yahoo download.")
             if cache_status["cache_exists"]:
                 st.sidebar.success("Yahoo cache file is available.")
                 st.sidebar.write(f"Cache last updated: `{cache_status['cache_last_updated']}`")
+                if cache_status["cache_is_stale"]:
+                    st.sidebar.warning("Yahoo cache is stale based on configured cache_ttl_hours.")
             else:
                 st.sidebar.warning("Yahoo cache file is not available yet.")
+            yahoo_cache_marker = yahoo_cache_token(adapter)
+        else:
+            yahoo_refresh_requested = False
+            yahoo_cache_marker = ""
         try:
-            ohlcv, adapter_warnings = _load_prices_once(runtime_config)
+            ohlcv, adapter_warnings = _load_prices_once(runtime_config, yahoo_refresh_requested, yahoo_cache_marker)
         except Exception as exc:
             st.error(f"Could not load configured data source: {exc}")
             return
@@ -212,7 +235,12 @@ def main() -> None:
         st.warning("DR mapping is missing. DR execution quality will be skipped and reported as missing optional data.")
 
     if data_mode == CONFIG_SOURCE_MODE:
-        outputs = _run_config_pipeline_once(runtime_config, enable_backtest, backtest_config)
+        if isinstance(adapter, YahooDataAdapter):
+            pipeline_config = disable_yahoo_force_refresh(runtime_config)
+            yahoo_cache_marker = yahoo_cache_token(get_data_adapter(pipeline_config))
+        else:
+            pipeline_config = runtime_config
+        outputs = _run_config_pipeline_once(pipeline_config, enable_backtest, backtest_config, False, yahoo_cache_marker)
         _show_status_tables(outputs)
     else:
         outputs = run_topdown_pipeline(
@@ -399,14 +427,20 @@ def _apply_local_thailand_yahoo_universe(config: dict, universe: str) -> dict:
 
 
 @st.cache_data(show_spinner=False)
-def _load_prices_once(config: dict) -> tuple[pd.DataFrame, list[str]]:
+def _load_prices_once(config: dict, refresh_requested: bool = False, cache_token: str = "") -> tuple[pd.DataFrame, list[str]]:
     adapter = get_data_adapter(config)
     prices = adapter.load_prices()
     return prices, list(getattr(adapter, "warnings", []))
 
 
 @st.cache_data(show_spinner=False)
-def _run_config_pipeline_once(config: dict, backtest_enabled: bool, backtest_config: BacktestConfig | None) -> dict[str, pd.DataFrame]:
+def _run_config_pipeline_once(
+    config: dict,
+    backtest_enabled: bool,
+    backtest_config: BacktestConfig | None,
+    refresh_requested: bool = False,
+    cache_token: str = "",
+) -> dict[str, pd.DataFrame]:
     return run_pipeline_from_config(adapter=get_data_adapter(config), backtest_enabled=backtest_enabled, backtest_config=backtest_config)
 
 
