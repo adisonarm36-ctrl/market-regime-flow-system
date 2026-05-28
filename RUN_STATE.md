@@ -2,7 +2,7 @@
 
 ## Last Completed Work
 
-Phase 7E: Production Reference Readiness.
+Phase 7F: First-run usability documentation finalization and regression tests.
 
 The project is safe to continue from the current codebase. CSV remains supported, manual upload remains an Advanced/Fallback workflow, Yahoo/yfinance is historical/cache-based only, and opt-in backtests are research assumptions only.
 
@@ -14,6 +14,8 @@ The dashboard now includes an explicit `Run Yahoo historical smoke test` button 
 
 The dashboard now reports production reference readiness for configured local files. It checks required columns, fake/sample file usage, missing files, and local Yahoo ticker fields without inventing mappings or classifications.
 
+First-run usability is complete through Phase 7F. README, status, run-state, phase plan, and first-run plan docs now describe the dependency diagnostics, demo reference mode, startup checklist, Yahoo historical smoke test, production reference readiness, manual upload fallback, common first-run errors, and known pytest cache warning.
+
 ## Current Test Result
 
 `131 passed, 1 pytest cache warning` on 2026-05-27 with Python 3.14.2.
@@ -22,29 +24,26 @@ The warning is the known Windows `.pytest_cache` creation/cleanup issue document
 
 ## Next Phase
 
-Recommended next phase is Phase 7F: Final docs and regression tests.
+No first-run usability phase remains active.
 
-Do not start Phase 7F or later unless explicitly requested.
+Recommended next work is production data verification and documentation/test maintenance.
 
 ## Exact Next Prompt
 
 ```text
 Read AGENTS.md, CODEX_WORKFLOW.md, RUN_STATE.md, PROJECT_STATUS.md, PHASE_PLAN.md, and TROUBLESHOOTING.md first.
 
-Implement only Phase 7F: Final Docs And Regression Tests from FIRST_RUN_USABILITY_PLAN.md.
+Review production-data readiness for the Yahoo-first research workflow.
 
 Goal:
-Finalize the first-run usability workflow documentation and lock behavior with tests.
+Identify remaining data-readiness gaps without adding live APIs, scraping, broker integration, realtime data, or financial advice.
 
 Tasks:
-- Keep Phase 7C startup checklist visible before configured loading.
-- Keep Phase 7D smoke test historical/cache-only.
-- Keep Phase 7E production readiness checks visible and non-inferential.
-- Do not call Yahoo in tests.
-- Update README, PROJECT_STATUS.md, RUN_STATE.md, PHASE_PLAN.md, and FIRST_RUN_USABILITY_PLAN.md.
-- Do not add new product features beyond docs/final tests.
-- Keep tests network-free.
-- Run the workflow checks from CODEX_WORKFLOW.md.
+- Verify which local reference files are fake/demo samples.
+- List required verified replacement files for production research.
+- Confirm manual upload fallback remains available.
+- Confirm Yahoo remains historical/cache-based only.
+- Run tests if source or docs change.
 ```
 
 ## Handoff Notes
