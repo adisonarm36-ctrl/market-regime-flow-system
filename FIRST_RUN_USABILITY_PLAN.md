@@ -4,7 +4,24 @@
 
 Make the Yahoo-first dashboard usable on a fresh checkout without requiring the user to understand internal adapter/reference-data failures first.
 
-The current first-run problem is that `active_source: yahoo` is visible as the default path, but a fresh run can fail with raw or confusing errors:
+## Implementation Status
+
+Phases 7A through 7F are complete.
+
+Implemented behavior:
+- Dashboard reports `yfinance` availability and shows exact virtual-environment install/run commands when missing.
+- Config source mode can explicitly map missing local reference paths to bundled fake/demo sample files at runtime only.
+- Dashboard shows a Yahoo startup checklist before configured loading, with blockers, warnings, cache status, reference coverage, demo mode state, and manual upload fallback status.
+- Dashboard has an explicit Yahoo historical smoke-test button using configured tickers and cache-first behavior.
+- Dashboard reports production reference readiness, including missing files, required columns, sample-file warnings, and local Yahoo ticker fields.
+- Documentation covers first-run commands, demo vs production reference mode, Yahoo historical/cache limitations, manual upload fallback, common first-run errors, and known pytest cache warning.
+- Tests use mocks/fake data and do not call Yahoo or external network services.
+
+Remaining responsibility:
+- Replace fake/demo sample reference files with manually verified local data before production research use.
+- Keep Yahoo historical/cache-based only and keep local reference files as the source of truth for metadata, Thailand universe membership, DR/DRx mapping, security type, sector/country maps, and local DR quality data.
+
+The original first-run problem was that `active_source: yahoo` was visible as the default path, but a fresh run could fail with raw or confusing errors:
 
 - `No module named 'yfinance'`
 - missing local reference files:

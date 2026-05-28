@@ -318,6 +318,30 @@ Backtest outputs include coverage warnings for overlapping dates and tickers. DR
 - Metadata, sector maps, and DR mappings still need local CSV/config files.
 - No buy/sell recommendations are generated.
 
+### First-Run Checklist And Common Errors
+
+Run the dashboard from the project virtual environment:
+
+```powershell
+.\.venv\Scripts\python.exe -m streamlit run app.py
+```
+
+If `yfinance` is missing, install requirements and rerun Streamlit from the same environment:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m streamlit run app.py
+```
+
+Common first-run blockers:
+
+- Wrong Python/Streamlit environment: run Streamlit through `.\.venv\Scripts\python.exe -m streamlit run app.py`.
+- Missing `yfinance`: install `requirements.txt` in the project virtual environment.
+- Missing production reference files: provide verified local files or explicitly enable fake/demo reference mode for smoke testing only.
+- Pytest cache warning on Windows: the known `.pytest_cache` warning does not affect pass/fail status when tests otherwise pass.
+
+Demo reference mode is for smoke testing only. Production research requires verified local reference files for metadata, sector/country maps, Thailand universe/security classifications, DR/DRx mappings, liquidity, bid/ask, fair-value, FX, and underlying price inputs.
+
 ## Hybrid Yahoo + Local Reference Data
 
 Yahoo/yfinance is used for historical OHLCV prices only. Metadata and mappings stay local because Yahoo metadata coverage can be incomplete and is not suitable for Thailand domestic breadth, DR mapping, or custom research universes.

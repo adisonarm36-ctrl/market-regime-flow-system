@@ -14,6 +14,7 @@
 - Phase 7C completed: Yahoo-first startup checklist with blockers, warnings, cache status, reference coverage, demo mode state, and manual fallback status.
 - Phase 7D completed: explicit Yahoo historical smoke test with cache-first behavior and no network calls in tests.
 - Phase 7E completed: production reference readiness checks for required local files, columns, sample-file warnings, and Yahoo ticker fields.
+- Phase 7F completed: first-run usability documentation finalization and regression test confirmation.
 - Current test result: 131 passed, 1 pytest cache warning on 2026-05-27 with Python 3.14.2.
 - CSV remains supported and is still the default fallback/source.
 - Yahoo historical adapter works with cache-first mode and explicit user-controlled refresh.
@@ -72,4 +73,4 @@
 
 ## Next Phase
 
-Recommended next phase: Phase 7F, first-run final docs and regression tests. Do not start Phase 7F unless explicitly requested.
+No first-run usability phase remains active. Recommended next work is production data verification and ongoing documentation/test maintenance.
