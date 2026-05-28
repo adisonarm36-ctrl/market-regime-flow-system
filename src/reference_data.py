@@ -41,6 +41,7 @@ def load_asset_map(path: str | Path) -> pd.DataFrame:
 def load_dr_mapping(path: str | Path) -> pd.DataFrame:
     """Load local DR mapping reference data from CSV or YAML."""
     df = _load_tabular_reference(path)
+    df = _normalize_dr_mapping_aliases(df)
     missing = {"DR_Ticker", "Underlying_Ticker"}.difference(df.columns)
     if missing:
         raise ValueError(f"Missing DR mapping columns: {', '.join(sorted(missing))}")
@@ -128,3 +129,17 @@ def _yaml_to_dataframe(loaded: dict[str, Any]) -> pd.DataFrame:
                 rows.append({"Ticker": ticker, group_name.rstrip("s"): value})
         return pd.DataFrame(rows)
     return pd.DataFrame()
+
+
+def _normalize_dr_mapping_aliases(df: pd.DataFrame) -> pd.DataFrame:
+    result = df.copy()
+    aliases = {
+        "DRTicker": "DR_Ticker",
+        "UnderlyingTicker": "Underlying_Ticker",
+    }
+    for source, target in aliases.items():
+        if source in result.columns and target not in result.columns:
+            result[target] = result[source]
+    if "Underlying_Ticker" in result.columns and "UnderlyingTicker" not in result.columns:
+        result["UnderlyingTicker"] = result["Underlying_Ticker"]
+    return result

@@ -28,6 +28,8 @@ from src.startup_diagnostics import (
     check_yfinance_available,
     run_yahoo_historical_smoke_test,
     startup_checklist_has_blockers,
+    summarize_yahoo_smoke_test_state,
+    summarize_yahoo_startup_state,
     yfinance_missing_guidance,
 )
 from src.topdown_pipeline import run_pipeline_from_config, run_topdown_pipeline
@@ -240,9 +242,10 @@ def main() -> None:
                 adapter_error=adapter_error,
             )
             _show_startup_checklist(startup_rows)
+            _show_yahoo_startup_state(startup_rows, use_demo_reference_data)
             _show_yahoo_smoke_test_control(pipeline_config=disable_yahoo_force_refresh(runtime_config), startup_rows=startup_rows)
             if startup_checklist_has_blockers(startup_rows):
-                st.error("Configured Yahoo startup has blockers. Resolve the checklist items or use Advanced / fallback manual upload.")
+                st.error("Blocked: selected Yahoo runtime configuration cannot run. Resolve the hard blocker or use Advanced / fallback manual upload.")
                 return
         elif runtime_config.get("active_source") == "yahoo":
             yahoo_dependency = yahoo_dependency_diagnostic()
@@ -254,7 +257,8 @@ def main() -> None:
                 adapter_error=adapter_error,
             )
             _show_startup_checklist(startup_rows)
-            st.error("Configured Yahoo startup has blockers. Resolve the checklist items or use Advanced / fallback manual upload.")
+            _show_yahoo_startup_state(startup_rows, use_demo_reference_data)
+            st.error("Blocked: selected Yahoo runtime configuration cannot run. Resolve the hard blocker or use Advanced / fallback manual upload.")
             return
         else:
             yahoo_refresh_requested = False
@@ -441,6 +445,19 @@ def _show_startup_checklist(rows: list[StartupChecklistRow]) -> None:
             st.warning(message)
 
 
+def _show_yahoo_startup_state(rows: list[StartupChecklistRow], demo_reference_enabled: bool) -> None:
+    summary = summarize_yahoo_startup_state(rows, demo_reference_enabled=demo_reference_enabled)
+    message = f"{summary.headline}. {summary.detail}"
+    if summary.status == "blocked":
+        st.error(message)
+    elif summary.status == "demo_ready":
+        st.success(message)
+    elif summary.status == "production_warning":
+        st.warning(message)
+    else:
+        st.success(message)
+
+
 def _show_yahoo_smoke_test_control(pipeline_config: dict, startup_rows: list[StartupChecklistRow]) -> None:
     st.subheader("Yahoo Historical Smoke Test")
     st.info("Historical Yahoo OHLCV smoke test only. Not realtime, not data completeness validation, and not investment advice.")
@@ -474,8 +491,9 @@ def _show_yahoo_smoke_test_result(result: YahooSmokeTestResult) -> None:
     _show_table("Yahoo Smoke Test Result", table)
     for warning in result.warnings:
         st.warning(warning)
+    summary = summarize_yahoo_smoke_test_state(result)
     if result.error:
-        st.error(result.error)
+        st.error(f"{summary.headline}. {summary.detail}")
     elif result.rows_loaded > 0:
         st.success("Yahoo historical smoke test loaded cached or historical OHLCV rows.")
 
@@ -602,6 +620,10 @@ def _safe_adapter_load(loader, label: str) -> pd.DataFrame | None:
         return loader()
     except FileNotFoundError:
         st.warning(f"Configured {label} is missing. Related layers will be limited.")
+        return None
+    except ValueError as exc:
+        st.warning(f"Configured {label} has invalid schema and will be skipped. Related {label} layers will be limited.")
+        st.caption(str(exc))
         return None
     except NotImplementedError as exc:
         st.warning(str(exc))

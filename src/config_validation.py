@@ -14,6 +14,7 @@ DEMO_REFERENCE_PATHS = {
     "metadata_path": "data/reference/metadata_sample.csv",
     "sector_map_path": "data/reference/sector_map_sample.csv",
     "country_map_path": "data/reference/country_map_sample.csv",
+    "dr_mapping_path": "data/sample/dr_mapping_sample.csv",
     "thailand_universe_path": "data/reference/thailand/thailand_universe_sample.csv",
     "thailand_sector_map_path": "data/reference/thailand/thailand_sector_map_sample.csv",
     "thailand_security_types_path": "data/reference/thailand/thailand_security_types_sample.csv",

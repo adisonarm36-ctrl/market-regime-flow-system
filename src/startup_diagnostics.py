@@ -61,6 +61,19 @@ class ProductionReferenceReadinessRow:
     next_step: str = ""
 
 
+@dataclass(frozen=True)
+class StartupStateSummary:
+    """Aggregated first-run dashboard state."""
+
+    status: str
+    headline: str
+    detail: str
+    hard_blockers: tuple[str, ...] = ()
+    production_warnings: tuple[str, ...] = ()
+    demo_warnings: tuple[str, ...] = ()
+    informational_messages: tuple[str, ...] = ()
+
+
 YAHOO_TICKER_COLUMNS = {"YahooTicker", "Yahoo_Ticker", "YahooSymbol", "Yahoo_Symbol"}
 PRODUCTION_REFERENCE_SPECS = {
     "metadata_path": ("Metadata", ["Ticker", "SecurityType", "Country", "Sector", "Industry", "Universe", "Suspended"]),
@@ -275,6 +288,74 @@ def startup_checklist_has_blockers(rows: list[StartupChecklistRow]) -> bool:
     return any(row.status == "blocker" for row in rows)
 
 
+def summarize_yahoo_startup_state(rows: list[StartupChecklistRow], demo_reference_enabled: bool = False) -> StartupStateSummary:
+    """Separate true runtime blockers from production/demo warnings."""
+    hard_blockers = tuple(_row_message(row) for row in rows if row.status == "blocker")
+    production_warnings = tuple(
+        _row_message(row)
+        for row in rows
+        if row.status == "warning" and row.item in {"Required production references", "Optional local references"}
+    )
+    demo_warnings = tuple(
+        _row_message(row)
+        for row in rows
+        if row.status == "warning" and row.item == "Demo reference mode"
+    )
+    informational_messages = tuple(_row_message(row) for row in rows if row.status == "ok")
+
+    if hard_blockers:
+        first = hard_blockers[0]
+        if "yfinance" in first:
+            headline = "Blocked: yfinance is missing"
+        elif "No Yahoo tickers" in first or "Configured Yahoo tickers" in first:
+            headline = "Blocked: no configured Yahoo tickers"
+        elif "Yahoo historical loading" in first or "no usable cache" in first:
+            headline = "Blocked: Yahoo fetch failed and no cache is available"
+        else:
+            headline = "Blocked: selected Yahoo runtime configuration cannot run"
+        return StartupStateSummary(
+            status="blocked",
+            headline=headline,
+            detail="Resolve the hard blocker or use Advanced / fallback manual upload.",
+            hard_blockers=hard_blockers,
+            production_warnings=production_warnings,
+            demo_warnings=demo_warnings,
+            informational_messages=informational_messages,
+        )
+
+    if demo_reference_enabled:
+        return StartupStateSummary(
+            status="demo_ready",
+            headline="Ready for demo/smoke testing",
+            detail="Demo-ready: Yahoo historical data and bundled sample references are available. Not production-ready.",
+            hard_blockers=hard_blockers,
+            production_warnings=production_warnings,
+            demo_warnings=demo_warnings,
+            informational_messages=informational_messages,
+        )
+
+    if production_warnings:
+        return StartupStateSummary(
+            status="production_warning",
+            headline="Not production-ready: verified local reference files are missing",
+            detail="Yahoo historical smoke testing can run, but production research layers need verified local reference files.",
+            hard_blockers=hard_blockers,
+            production_warnings=production_warnings,
+            demo_warnings=demo_warnings,
+            informational_messages=informational_messages,
+        )
+
+    return StartupStateSummary(
+        status="ready",
+        headline="Ready for configured Yahoo historical loading",
+        detail="No hard startup blockers were detected.",
+        hard_blockers=hard_blockers,
+        production_warnings=production_warnings,
+        demo_warnings=demo_warnings,
+        informational_messages=informational_messages,
+    )
+
+
 def run_yahoo_historical_smoke_test(adapter) -> YahooSmokeTestResult:
     """Run one cache-first Yahoo historical loading smoke test through an adapter."""
     before = adapter.cache_metadata()
@@ -307,6 +388,32 @@ def run_yahoo_historical_smoke_test(adapter) -> YahooSmokeTestResult:
             warnings=tuple(getattr(adapter, "warnings", [])),
             error=str(exc),
         )
+
+
+def summarize_yahoo_smoke_test_state(result: YahooSmokeTestResult) -> StartupStateSummary:
+    """Summarize explicit Yahoo smoke-test runtime state."""
+    if result.error and not result.cache_exists_after and result.rows_loaded == 0:
+        return StartupStateSummary(
+            status="blocked",
+            headline="Blocked: Yahoo fetch failed and no cache is available",
+            detail=result.error,
+            hard_blockers=(result.error,),
+            production_warnings=(),
+            demo_warnings=(),
+            informational_messages=(),
+        )
+    if result.rows_loaded > 0:
+        return StartupStateSummary(
+            status="ready",
+            headline="Yahoo smoke test loaded historical OHLCV rows",
+            detail="Cached or historical Yahoo data is available for smoke testing.",
+            informational_messages=(f"rows_loaded: {result.rows_loaded}",),
+        )
+    return StartupStateSummary(
+        status="production_warning",
+        headline="Yahoo smoke test did not load rows",
+        detail=result.error or "No rows were loaded.",
+    )
 
 
 def build_production_reference_readiness(config: dict | None, source_name: str | None = None) -> list[ProductionReferenceReadinessRow]:
@@ -362,16 +469,16 @@ def _reference_checklist_rows(reference_data: dict, demo_reference_enabled: bool
     rows.append(
         StartupChecklistRow(
             item="Required production references",
-            status="ok" if not missing_required else ("warning" if demo_reference_enabled else "blocker"),
+            status="ok" if not missing_required else "warning",
             detail=(
                 f"Available: {', '.join(present_required)}. Missing: {', '.join(missing_required)}"
                 if missing_required
                 else f"Available: {', '.join(present_required)}"
             ),
             next_step=(
-                "Provide verified local reference files or enable demo reference mode for smoke testing only."
-                if missing_required and not demo_reference_enabled
-                else ("Replace fake/sample references with verified local files before production research." if missing_required else "")
+                "Replace fake/sample references with verified local files before production research."
+                if missing_required and demo_reference_enabled
+                else ("Provide verified local reference files before production research, or enable demo reference mode for smoke testing only." if missing_required else "")
             ),
         )
     )
@@ -542,3 +649,10 @@ def _yahoo_ticker_field_rows(reference_data: dict) -> list[ProductionReferenceRe
 
 def _is_sample_path(path: Path) -> bool:
     return any(token in path.name.lower() for token in ["sample", "demo", "fake"])
+
+
+def _row_message(row: StartupChecklistRow) -> str:
+    message = f"{row.item}: {row.detail}"
+    if row.next_step:
+        return f"{message} Next step: {row.next_step}"
+    return message

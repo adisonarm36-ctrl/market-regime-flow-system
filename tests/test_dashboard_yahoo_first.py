@@ -22,6 +22,8 @@ from src.startup_diagnostics import (
     build_production_reference_readiness,
     build_yahoo_startup_checklist,
     run_yahoo_historical_smoke_test,
+    summarize_yahoo_smoke_test_state,
+    summarize_yahoo_startup_state,
     startup_checklist_has_blockers,
     yfinance_missing_guidance,
 )
@@ -221,6 +223,75 @@ def test_yahoo_startup_checklist_warns_for_demo_reference_mode():
     assert any(row.item == "Demo reference mode" and row.status == "warning" and "fake/sample" in row.detail for row in rows)
 
 
+def test_demo_mode_missing_production_refs_is_demo_ready_not_blocked():
+    config = {
+        "active_source": "yahoo",
+        "source_settings": {
+            "yahoo": {
+                "tickers": ["AAA"],
+                "cache_dir": "data/cache/yahoo",
+                "reference_data": {
+                    "metadata_path": "data/reference/metadata.csv",
+                    "sector_map_path": "data/reference/sector_map.csv",
+                    "country_map_path": "data/reference/country_map.csv",
+                },
+            }
+        },
+    }
+    diagnostic = yahoo_dependency_diagnostic(find_spec=lambda package: object())
+    cache_status = {
+        "cache_path": "data/cache/yahoo/demo.csv",
+        "cache_exists": True,
+        "cache_is_stale": False,
+    }
+
+    rows = build_yahoo_startup_checklist(
+        config,
+        diagnostic,
+        cache_status=cache_status,
+        demo_reference_enabled=True,
+    )
+    summary = summarize_yahoo_startup_state(rows, demo_reference_enabled=True)
+
+    assert not startup_checklist_has_blockers(rows)
+    assert summary.status == "demo_ready"
+    assert summary.headline == "Ready for demo/smoke testing"
+    assert summary.hard_blockers == ()
+    assert summary.production_warnings
+    assert summary.demo_warnings
+
+
+def test_production_missing_refs_are_warnings_not_yahoo_runtime_blockers():
+    config = {
+        "active_source": "yahoo",
+        "source_settings": {
+            "yahoo": {
+                "tickers": ["AAA"],
+                "cache_dir": "data/cache/yahoo",
+                "reference_data": {
+                    "metadata_path": "data/reference/metadata.csv",
+                    "sector_map_path": "data/reference/sector_map.csv",
+                    "country_map_path": "data/reference/country_map.csv",
+                },
+            }
+        },
+    }
+    diagnostic = yahoo_dependency_diagnostic(find_spec=lambda package: object())
+    cache_status = {
+        "cache_path": "data/cache/yahoo/demo.csv",
+        "cache_exists": True,
+        "cache_is_stale": False,
+    }
+
+    rows = build_yahoo_startup_checklist(config, diagnostic, cache_status=cache_status)
+    summary = summarize_yahoo_startup_state(rows, demo_reference_enabled=False)
+
+    assert not startup_checklist_has_blockers(rows)
+    assert summary.status == "production_warning"
+    assert "Not production-ready" in summary.headline
+    assert summary.production_warnings
+
+
 def test_yahoo_historical_smoke_test_summarizes_cache_first_success(tmp_path):
     class FakeYFinance:
         calls = 0
@@ -265,6 +336,11 @@ def test_yahoo_historical_smoke_test_reports_error_without_raising(tmp_path):
     assert result.rows_loaded == 0
     assert "network disabled in test" in result.error
     assert result.cache_status == "cache_miss"
+
+    summary = summarize_yahoo_smoke_test_state(result)
+
+    assert summary.status == "blocked"
+    assert summary.headline == "Blocked: Yahoo fetch failed and no cache is available"
 
 
 def test_production_reference_readiness_flags_missing_columns(tmp_path):

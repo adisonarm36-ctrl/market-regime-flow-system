@@ -288,3 +288,9 @@ class YahooDataAdapter(DataAdapter):
         except FileNotFoundError:
             self.warnings.append(f"{missing_message}: {path}")
             return pd.DataFrame()
+        except ValueError as exc:
+            self.warnings.append(
+                f"optional reference {key} has invalid schema and will be skipped: {path}. "
+                f"{exc}. Related layers will be limited."
+            )
+            return pd.DataFrame()
