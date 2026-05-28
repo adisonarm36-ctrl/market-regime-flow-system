@@ -13,7 +13,8 @@
 - Phase 7B completed: explicit runtime demo reference bootstrap mode for bundled fake/sample reference files.
 - Phase 7C completed: Yahoo-first startup checklist with blockers, warnings, cache status, reference coverage, demo mode state, and manual fallback status.
 - Phase 7D completed: explicit Yahoo historical smoke test with cache-first behavior and no network calls in tests.
-- Current test result: 129 passed, 1 pytest cache warning on 2026-05-27 with Python 3.14.2.
+- Phase 7E completed: production reference readiness checks for required local files, columns, sample-file warnings, and Yahoo ticker fields.
+- Current test result: 131 passed, 1 pytest cache warning on 2026-05-27 with Python 3.14.2.
 - CSV remains supported and is still the default fallback/source.
 - Yahoo historical adapter works with cache-first mode and explicit user-controlled refresh.
 - Hybrid Yahoo + local reference data workflow works.
@@ -22,6 +23,7 @@
 - Dashboard Config source mode can explicitly map missing local reference paths to bundled fake/demo sample files for first-run smoke testing without editing config files.
 - Dashboard Config source mode shows a startup checklist before configured Yahoo loading and reports actionable blockers without making network calls.
 - Dashboard Config source mode includes an explicit Yahoo historical smoke-test button that reports loaded rows, date range, cache status, warnings, and errors.
+- Dashboard Config source mode reports production reference readiness without inferring missing tickers, mappings, sectors, countries, or classifications.
 - Local reference-driven Yahoo ticker universe selection is available where verified Yahoo ticker fields exist.
 - Opt-in research backtests can use Yahoo-loaded historical prices through the configured pipeline and include coverage warnings.
 - Thailand reference schemas, domestic breadth eligibility, and DR/DRx mapping reports work with local files.
@@ -70,4 +72,4 @@
 
 ## Next Phase
 
-Recommended next phase: Phase 7E, production reference readiness. Do not start Phase 7E unless explicitly requested.
+Recommended next phase: Phase 7F, first-run final docs and regression tests. Do not start Phase 7F unless explicitly requested.

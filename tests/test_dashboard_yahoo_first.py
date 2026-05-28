@@ -19,6 +19,7 @@ from src.data_adapters.yahoo_adapter import YahooDataAdapter
 from src.startup_diagnostics import (
     STREAMLIT_VENV_RUN_COMMAND,
     YFINANCE_INSTALL_COMMAND,
+    build_production_reference_readiness,
     build_yahoo_startup_checklist,
     run_yahoo_historical_smoke_test,
     startup_checklist_has_blockers,
@@ -264,3 +265,57 @@ def test_yahoo_historical_smoke_test_reports_error_without_raising(tmp_path):
     assert result.rows_loaded == 0
     assert "network disabled in test" in result.error
     assert result.cache_status == "cache_miss"
+
+
+def test_production_reference_readiness_flags_missing_columns(tmp_path):
+    metadata = tmp_path / "metadata.csv"
+    sector = tmp_path / "sector.csv"
+    country = tmp_path / "country.csv"
+    metadata.write_text("Ticker,SecurityType\nAAA,Stock\n", encoding="utf-8")
+    sector.write_text("Ticker,Sector\nAAA,Demo\n", encoding="utf-8")
+    country.write_text("Ticker,Country\nAAA,Demo\n", encoding="utf-8")
+    config = {
+        "active_source": "yahoo",
+        "source_settings": {
+            "yahoo": {
+                "reference_data": {
+                    "metadata_path": str(metadata),
+                    "sector_map_path": str(sector),
+                    "country_map_path": str(country),
+                }
+            }
+        },
+    }
+
+    rows = build_production_reference_readiness(config)
+
+    metadata_row = next(row for row in rows if row.reference == "Metadata")
+    yahoo_row = next(row for row in rows if row.reference == "Metadata Yahoo ticker field")
+    assert metadata_row.status == "invalid"
+    assert "Country" in metadata_row.missing_columns
+    assert yahoo_row.status == "warning"
+    assert "will not infer" in yahoo_row.detail
+
+
+def test_production_reference_readiness_detects_sample_files():
+    config = {
+        "active_source": "yahoo",
+        "source_settings": {
+            "yahoo": {
+                "reference_data": {
+                    "metadata_path": "data/reference/metadata_sample.csv",
+                    "sector_map_path": "data/reference/sector_map_sample.csv",
+                    "country_map_path": "data/reference/country_map_sample.csv",
+                    "thailand_universe_path": "data/reference/thailand/thailand_universe_sample.csv",
+                    "thailand_security_types_path": "data/reference/thailand/thailand_security_types_sample.csv",
+                    "thailand_dr_mapping_path": "data/reference/thailand/thailand_dr_mapping_sample.csv",
+                }
+            }
+        },
+    }
+
+    rows = build_production_reference_readiness(config)
+
+    assert any(row.reference == "Metadata" and row.status == "sample" for row in rows)
+    assert any(row.reference == "Thailand DR/DRx mapping" and row.status == "sample" for row in rows)
+    assert any(row.reference == "Thailand Yahoo ticker field" and row.status == "warning" for row in rows)
