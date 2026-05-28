@@ -21,8 +21,10 @@ from src.data_loader import pivot_prices, pivot_volume
 from src.report_generator import build_daily_report
 from src.startup_diagnostics import (
     StartupChecklistRow,
+    ProductionReferenceReadinessRow,
     YahooSmokeTestResult,
     build_yahoo_startup_checklist,
+    build_production_reference_readiness,
     check_yfinance_available,
     run_yahoo_historical_smoke_test,
     startup_checklist_has_blockers,
@@ -173,6 +175,7 @@ def main() -> None:
         runtime_config, demo_reference_warnings = apply_demo_reference_runtime_config(config, use_demo_reference_data)
         for warning in demo_reference_warnings:
             st.warning(warning)
+        _show_production_reference_readiness(build_production_reference_readiness(runtime_config))
         adapter = _safe_get_data_adapter(runtime_config)
         adapter_error = None
         if isinstance(adapter, Exception):
@@ -475,6 +478,20 @@ def _show_yahoo_smoke_test_result(result: YahooSmokeTestResult) -> None:
         st.error(result.error)
     elif result.rows_loaded > 0:
         st.success("Yahoo historical smoke test loaded cached or historical OHLCV rows.")
+
+
+def _show_production_reference_readiness(rows: list[ProductionReferenceReadinessRow]) -> None:
+    st.subheader("Production Reference Readiness")
+    if not rows:
+        st.info("No production reference readiness rows available.")
+        return
+    table = pd.DataFrame([row.__dict__ for row in rows])
+    st.dataframe(table, use_container_width=True)
+    for row in rows:
+        if row.status in {"missing", "invalid"}:
+            st.warning(f"{row.reference}: {row.detail} {row.next_step}".strip())
+        elif row.status == "sample":
+            st.warning(f"{row.reference}: fake/sample reference detected. {row.next_step}".strip())
 
 
 def build_backtest_dashboard_tables(outputs: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:

@@ -48,6 +48,61 @@ class YahooSmokeTestResult:
     error: str = ""
 
 
+@dataclass(frozen=True)
+class ProductionReferenceReadinessRow:
+    """One production reference readiness row."""
+
+    reference: str
+    status: str
+    path: str
+    required_columns: str
+    missing_columns: str
+    detail: str
+    next_step: str = ""
+
+
+YAHOO_TICKER_COLUMNS = {"YahooTicker", "Yahoo_Ticker", "YahooSymbol", "Yahoo_Symbol"}
+PRODUCTION_REFERENCE_SPECS = {
+    "metadata_path": ("Metadata", ["Ticker", "SecurityType", "Country", "Sector", "Industry", "Universe", "Suspended"]),
+    "sector_map_path": ("Sector map", ["Ticker", "Sector"]),
+    "country_map_path": ("Country map", ["Ticker", "Country"]),
+    "asset_map_path": ("Asset map", ["Ticker"]),
+    "thailand_universe_path": (
+        "Thailand universe",
+        [
+            "Ticker",
+            "Name",
+            "Country",
+            "Exchange",
+            "Universe",
+            "SecurityType",
+            "Sector",
+            "Industry",
+            "Currency",
+            "IsDR",
+            "IsDRx",
+            "IsETF",
+            "IsDW",
+            "IsWarrant",
+            "Suspended",
+            "IncludeInDomesticBreadth",
+        ],
+    ),
+    "thailand_sector_map_path": ("Thailand sector map", ["Ticker", "Sector", "Industry", "Country", "Exchange", "Universe"]),
+    "thailand_security_types_path": (
+        "Thailand security types",
+        ["Ticker", "SecurityType", "IsDomesticStock", "IsDR", "IsDRx", "IsETF", "IsDW", "IsWarrant", "Suspended", "IncludeInDomesticBreadth"],
+    ),
+    "thailand_liquidity_path": ("Thailand liquidity", ["Ticker", "average_traded_value_20d", "average_volume_20d", "trading_days_ratio_60d"]),
+    "thailand_dr_mapping_path": ("Thailand DR/DRx mapping", ["DR_Ticker", "DR_Type", "UnderlyingTicker", "UnderlyingExchange", "UnderlyingCountry", "UnderlyingCurrency", "Ratio", "IsActive"]),
+    "dr_market_data_path": ("DR market data", ["Date", "DR_Ticker", "Open", "High", "Low", "Close", "Volume", "ValueTraded"]),
+    "dr_bid_ask_path": ("DR bid/ask", ["Date", "DR_Ticker", "Bid", "Ask"]),
+    "dr_fair_value_inputs_path": ("DR fair-value inputs", ["DR_Ticker", "UnderlyingTicker", "UnderlyingCurrency", "DR_Currency", "Ratio", "FXPair"]),
+    "fx_rates_path": ("FX rates", ["Date", "FXPair", "Rate"]),
+    "underlying_prices_path": ("Underlying prices", ["Date", "UnderlyingTicker", "Close", "Currency"]),
+}
+
+
 def check_yfinance_available(find_spec=util.find_spec) -> DependencyDiagnostic:
     """Check whether yfinance is importable in the active Python environment."""
     importable = find_spec("yfinance") is not None
@@ -254,6 +309,27 @@ def run_yahoo_historical_smoke_test(adapter) -> YahooSmokeTestResult:
         )
 
 
+def build_production_reference_readiness(config: dict | None, source_name: str | None = None) -> list[ProductionReferenceReadinessRow]:
+    """Validate configured production reference files without inventing missing data."""
+    if not config:
+        return [
+            ProductionReferenceReadinessRow(
+                reference="data_sources.yaml",
+                status="missing",
+                path="",
+                required_columns="",
+                missing_columns="",
+                detail="Configuration is unavailable.",
+                next_step="Restore config/data_sources.yaml or use manual upload fallback.",
+            )
+        ]
+    active_source = source_name or config.get("active_source", "csv")
+    reference_data = config.get("source_settings", {}).get(active_source, {}).get("reference_data", {}) or {}
+    rows = [_readiness_row(key, label, required, reference_data.get(key)) for key, (label, required) in PRODUCTION_REFERENCE_SPECS.items()]
+    rows.extend(_yahoo_ticker_field_rows(reference_data))
+    return rows
+
+
 def _reference_checklist_rows(reference_data: dict, demo_reference_enabled: bool) -> list[StartupChecklistRow]:
     required = {
         "metadata_path": "metadata",
@@ -340,3 +416,129 @@ def _smoke_cache_status(before: dict[str, Any], after: dict[str, Any], warnings:
     if after.get("cache_exists"):
         return "cache_created"
     return "cache_miss"
+
+
+def _readiness_row(key: str, label: str, required_columns: list[str], path_value: str | None) -> ProductionReferenceReadinessRow:
+    required = ", ".join(required_columns)
+    if not path_value:
+        return ProductionReferenceReadinessRow(
+            reference=label,
+            status="missing",
+            path="",
+            required_columns=required,
+            missing_columns=required,
+            detail="Reference path is not configured.",
+            next_step=f"Configure a verified local {label} file before production research.",
+        )
+    path = Path(path_value)
+    if not path.exists():
+        return ProductionReferenceReadinessRow(
+            reference=label,
+            status="missing",
+            path=str(path),
+            required_columns=required,
+            missing_columns=required,
+            detail="Configured reference file is missing.",
+            next_step=f"Provide a verified local {label} file or keep using demo mode for smoke testing only.",
+        )
+    sample_status = "sample" if _is_sample_path(path) else "ready"
+    if path.suffix.lower() not in {".csv", ".txt"}:
+        return ProductionReferenceReadinessRow(
+            reference=label,
+            status=sample_status,
+            path=str(path),
+            required_columns=required,
+            missing_columns="",
+            detail=(
+                "Configured reference exists. Column validation is skipped for non-CSV/YAML-like files in readiness checks."
+                if sample_status == "ready"
+                else "Configured reference is a fake/sample file and is not suitable for production research."
+            ),
+            next_step="Replace fake/sample files with verified production references." if sample_status == "sample" else "",
+        )
+    try:
+        columns = list(pd.read_csv(path, nrows=0).columns)
+    except Exception as exc:
+        return ProductionReferenceReadinessRow(
+            reference=label,
+            status="invalid",
+            path=str(path),
+            required_columns=required,
+            missing_columns=required,
+            detail=f"Could not read header: {exc}",
+            next_step="Fix the local CSV file before production research.",
+        )
+    missing = [column for column in required_columns if column not in columns]
+    if missing:
+        return ProductionReferenceReadinessRow(
+            reference=label,
+            status="invalid",
+            path=str(path),
+            required_columns=required,
+            missing_columns=", ".join(missing),
+            detail="Configured reference is missing required columns.",
+            next_step="Add the missing columns with verified local values; do not infer mappings.",
+        )
+    return ProductionReferenceReadinessRow(
+        reference=label,
+        status=sample_status,
+        path=str(path),
+        required_columns=required,
+        missing_columns="",
+        detail=(
+            "Configured reference has required columns."
+            if sample_status == "ready"
+            else "Configured reference has required columns but is fake/sample data and not suitable for production research."
+        ),
+        next_step="Replace fake/sample files with verified production references." if sample_status == "sample" else "",
+    )
+
+
+def _yahoo_ticker_field_rows(reference_data: dict) -> list[ProductionReferenceReadinessRow]:
+    rows: list[ProductionReferenceReadinessRow] = []
+    for key, label in [("metadata_path", "Metadata Yahoo ticker field"), ("thailand_universe_path", "Thailand Yahoo ticker field")]:
+        path_value = reference_data.get(key)
+        required = "one of YahooTicker, Yahoo_Ticker, YahooSymbol, Yahoo_Symbol"
+        if not path_value or not Path(path_value).exists() or Path(path_value).suffix.lower() not in {".csv", ".txt"}:
+            rows.append(
+                ProductionReferenceReadinessRow(
+                    reference=label,
+                    status="missing",
+                    path=str(path_value or ""),
+                    required_columns=required,
+                    missing_columns=required,
+                    detail="Yahoo ticker field cannot be verified because the reference file is missing or not CSV.",
+                    next_step="Add a verified Yahoo ticker field when using local references to build Yahoo universes.",
+                )
+            )
+            continue
+        columns = set(pd.read_csv(path_value, nrows=0).columns)
+        if columns.intersection(YAHOO_TICKER_COLUMNS):
+            rows.append(
+                ProductionReferenceReadinessRow(
+                    reference=label,
+                    status="ready" if not _is_sample_path(Path(path_value)) else "sample",
+                    path=str(path_value),
+                    required_columns=required,
+                    missing_columns="",
+                    detail="A local verified Yahoo ticker field is present. Values are not inferred by the system.",
+                    next_step="Verify ticker values manually before production research." if _is_sample_path(Path(path_value)) else "",
+                )
+            )
+        else:
+            rows.append(
+                ProductionReferenceReadinessRow(
+                    reference=label,
+                    status="warning",
+                    path=str(path_value),
+                    required_columns=required,
+                    missing_columns=required,
+                    detail="No Yahoo ticker field is present. The system will not infer exchange suffixes or ticker mappings.",
+                    next_step="Add verified Yahoo ticker values locally if Yahoo universe generation is required.",
+                )
+            )
+    return rows
+
+
+def _is_sample_path(path: Path) -> bool:
+    return any(token in path.name.lower() for token in ["sample", "demo", "fake"])

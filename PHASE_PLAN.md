@@ -1,8 +1,8 @@
 # Phase Plan
 
-Current implementation focus: first-run usability is complete through Phase 7D only.
+Current implementation focus: first-run usability is complete through Phase 7E only.
 
-The Yahoo-first transition is complete through Phase 6F. Phase 7A, 7B, 7C, and 7D first-run usability work are complete. The system supports configured CSV/manual data, optional Yahoo historical OHLCV loading, local reference-driven metadata/universe/mapping workflows, explicit Yahoo cache controls, opt-in research backtests from configured historical prices, missing-yfinance diagnostics, explicit runtime demo reference bootstrap mode, a Yahoo startup checklist before configured loading, and an explicit Yahoo historical smoke test.
+The Yahoo-first transition is complete through Phase 6F. Phase 7A through 7E first-run usability work is complete. The system supports configured CSV/manual data, optional Yahoo historical OHLCV loading, local reference-driven metadata/universe/mapping workflows, explicit Yahoo cache controls, opt-in research backtests from configured historical prices, missing-yfinance diagnostics, explicit runtime demo reference bootstrap mode, a Yahoo startup checklist before configured loading, an explicit Yahoo historical smoke test, and production reference readiness checks.
 
 ## Completed Milestones
 
@@ -17,6 +17,7 @@ The Yahoo-first transition is complete through Phase 6F. Phase 7A, 7B, 7C, and 7
 - Explicit dashboard demo reference mode maps missing local reference paths to bundled fake/sample files at runtime only.
 - Yahoo startup checklist reports active source, yfinance availability, configured tickers, cache status, reference coverage, demo mode state, manual fallback availability, and actionable blockers.
 - Yahoo historical smoke test uses configured tickers and cache-first behavior and reports rows loaded, date range, cache status, warnings, and errors.
+- Production reference readiness checks report missing files, required columns, fake/sample files, and local Yahoo ticker fields without inferring mappings or classifications.
 
 ## Current Constraints
 
@@ -29,16 +30,15 @@ The Yahoo-first transition is complete through Phase 6F. Phase 7A, 7B, 7C, and 7
 
 ## Recommended Next Work
 
-### Phase 7E: Production Reference Readiness
+### Phase 7F: Final Docs And Regression Tests
 
-Goal: document and validate what must be replaced before production research use, without inventing mappings or classifications.
+Goal: finalize first-run usability documentation and regression tests.
 
 Expected scope:
-- Add a production reference readiness checklist for metadata, sector/country maps, Thailand universe, security types, liquidity, DR/DRx mapping, DR quality inputs, FX, and underlying prices.
-- Validate required columns and report missing columns clearly.
-- Keep demo mode separate and clearly labeled.
-- Do not infer Thai Yahoo suffixes, DR underlyings, sectors, countries, or security types.
-- Do not add Phase 7F finalization.
+- Update README, PROJECT_STATUS.md, RUN_STATE.md, PHASE_PLAN.md, and FIRST_RUN_USABILITY_PLAN.md.
+- Document first-run install/run commands, demo vs production reference mode, Yahoo historical/cache limitations, manual upload fallback, and common first-run errors.
+- Confirm all tests use mocks/fake data and never call external network services.
+- Do not add new product features beyond docs/final regression tests.
 - Keep tests network-free.
 
 ### Production-Data Readiness
