@@ -18,6 +18,7 @@ from src.data_adapters import get_data_adapter
 from src.data_adapters.csv_adapter import CsvDataAdapter
 from src.data_adapters.yahoo_adapter import YahooDataAdapter
 from src.data_loader import pivot_prices, pivot_volume
+from src.dashboard_components import render_dataframe, render_empty_state
 from src.report_generator import build_daily_report
 from src.startup_diagnostics import (
     StartupChecklistRow,
@@ -423,9 +424,9 @@ def main() -> None:
 def _show_table(title: str, table: pd.DataFrame | None) -> None:
     st.subheader(title)
     if table is None or table.empty:
-        st.warning("No data available for this layer. Missing data is skipped.")
+        render_empty_state(st, "No data available for this layer. Missing data is skipped.")
         return
-    st.dataframe(table, use_container_width=True)
+    render_dataframe(st, table)
 
 
 def _show_startup_checklist(rows: list[StartupChecklistRow]) -> None:
@@ -434,7 +435,7 @@ def _show_startup_checklist(rows: list[StartupChecklistRow]) -> None:
         st.info("No startup checklist rows available.")
         return
     table = pd.DataFrame([row.__dict__ for row in rows])
-    st.dataframe(table, use_container_width=True)
+    render_dataframe(st, table)
     for row in rows:
         message = f"{row.item}: {row.detail}"
         if row.next_step:
@@ -504,7 +505,7 @@ def _show_production_reference_readiness(rows: list[ProductionReferenceReadiness
         st.info("No production reference readiness rows available.")
         return
     table = pd.DataFrame([row.__dict__ for row in rows])
-    st.dataframe(table, use_container_width=True)
+    render_dataframe(st, table)
     for row in rows:
         if row.status in {"missing", "invalid"}:
             st.warning(f"{row.reference}: {row.detail} {row.next_step}".strip())
