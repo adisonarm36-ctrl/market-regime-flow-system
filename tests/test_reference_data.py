@@ -2,6 +2,7 @@ import pandas as pd
 import pytest
 
 from src.reference_data import (
+    load_dr_mapping,
     load_country_map,
     load_metadata,
     load_sector_map,
@@ -45,3 +46,14 @@ def test_merge_reference_data_flags_missing_metadata():
 
     assert merged.loc[merged["Ticker"].eq("DEMO_MISSING"), "missing_metadata"].iloc[0]
     assert "tickers missing metadata" in warnings[0]
+
+
+def test_load_dr_mapping_accepts_supported_alias_columns(tmp_path):
+    path = tmp_path / "dr_mapping.csv"
+    path.write_text("DRTicker,UnderlyingTicker\nDEMO_DR,DEMO_UNDERLYING\n", encoding="utf-8")
+
+    result = load_dr_mapping(path)
+
+    assert result["DR_Ticker"].tolist() == ["DEMO_DR"]
+    assert result["Underlying_Ticker"].tolist() == ["DEMO_UNDERLYING"]
+    assert result["UnderlyingTicker"].tolist() == ["DEMO_UNDERLYING"]

@@ -298,3 +298,15 @@ def test_yahoo_adapter_missing_optional_reference_data_warns():
     assert metadata.empty
     assert "metadata path missing" in adapter.warnings[0]
     assert any("metadata path missing" in warning for warning in warnings)
+
+
+def test_yahoo_adapter_invalid_optional_dr_mapping_schema_warns_without_raising(tmp_path):
+    dr_mapping = tmp_path / "bad_dr_mapping.csv"
+    dr_mapping.write_text("DR_Ticker,Name\nDEMO_DR,Demo\n", encoding="utf-8")
+    adapter = YahooDataAdapter(["AAA"], reference_data={"dr_mapping_path": str(dr_mapping)})
+
+    result = adapter.load_dr_mapping()
+
+    assert result.empty
+    assert any("optional reference dr_mapping_path has invalid schema" in warning for warning in adapter.warnings)
+    assert any(str(dr_mapping) in warning for warning in adapter.warnings)
