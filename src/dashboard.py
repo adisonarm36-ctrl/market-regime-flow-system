@@ -836,9 +836,74 @@ def build_signal_card_rows(stock_ranking: pd.DataFrame | None, limit: int | None
                 "signal_type": _safe_row_text(row, "signal_type"),
                 "why": _safe_row_text(row, "reason"),
                 "warnings": _combine_row_warnings(row, ["failed_filters", "data_quality_warning", "dr_data_quality_warning"]),
+                "detail_sections": build_signal_detail_sections(row),
             }
         )
     return pd.DataFrame(rows)
+
+
+def build_signal_detail_sections(row: pd.Series) -> dict[str, pd.DataFrame]:
+    """Build fact/assumption/warning detail sections for one signal from existing row values."""
+    fact_rows = _signal_detail_rows(
+        row,
+        [
+            ("Ticker", "Ticker"),
+            ("Security type", "SecurityType"),
+            ("Country", "Country"),
+            ("Sector", "Sector"),
+            ("Industry", "Industry"),
+            ("Universe", "Universe"),
+            ("Signal type", "signal_type"),
+            ("Research score", "research_score"),
+            ("Momentum score", "momentum_score"),
+            ("1M momentum", "momentum_1m"),
+            ("3M momentum", "momentum_3m"),
+            ("6M momentum", "momentum_6m"),
+            ("12M momentum", "momentum_12m"),
+            ("Volatility-adjusted momentum", "volatility_adjusted_momentum"),
+            ("Distance from 52-week high", "distance_from_52week_high"),
+            ("Above 50-day moving average", "above_50ma"),
+            ("Above 200-day moving average", "above_200ma"),
+            ("Trend quality", "trend_quality"),
+            ("Country breadth score", "country_breadth_score"),
+            ("Country regime", "country_regime"),
+            ("Sector breadth score", "sector_breadth_score"),
+            ("Cluster", "cluster"),
+            ("Cluster score", "cluster_score"),
+            ("DR quality score", "dr_quality_score"),
+            ("Average traded value 20D", "average_traded_value_20d"),
+        ],
+        source="stock_ranking",
+    )
+    assumption_rows = [
+        {
+            "item": "Calculation source",
+            "value": "Existing stock_ranking output",
+            "source": "stock_ranking",
+            "note": "Presentation only; no signal calculation changed.",
+        },
+        {
+            "item": "Price or indicator chart",
+            "value": "Needs data source",
+            "source": "Not available",
+            "note": "No ticker-level price series is present in stock_ranking.",
+        },
+        {
+            "item": "Backtest evidence",
+            "value": "Not available",
+            "source": "Phase 5",
+            "note": "Backtest evidence UX is out of scope for this phase.",
+        },
+    ]
+    warning_rows = _signal_warning_rows(row)
+    data_quality_rows = _signal_data_quality_rows(row)
+    return {
+        "Facts": pd.DataFrame(fact_rows),
+        "Assumptions": pd.DataFrame(assumption_rows),
+        "Warnings": pd.DataFrame(warning_rows),
+        "Data Quality": pd.DataFrame(data_quality_rows),
+        "Supporting Row": _supporting_row_table(row),
+    }
 
 
 def _show_signal_browser(stock_ranking: pd.DataFrame | None) -> None:
@@ -904,6 +969,21 @@ def _render_signal_card(card: pd.Series) -> None:
         st.caption(f"Why this signal: {card['why']}")
         if card["warnings"] != "None reported":
             st.warning(f"Warnings: {card['warnings']}")
+        detail_sections = card.get("detail_sections")
+        if isinstance(detail_sections, dict):
+            with st.expander(f"Signal detail for {card['Ticker']}", expanded=False):
+                _show_signal_detail_sections(detail_sections)
+
+
+def _show_signal_detail_sections(sections: dict[str, pd.DataFrame]) -> None:
+    st.info("Signal detail uses existing output rows only. It is not financial advice and does not change calculations.")
+    for section_name in ["Facts", "Assumptions", "Warnings", "Data Quality", "Supporting Row"]:
+        table = sections.get(section_name, pd.DataFrame())
+        st.markdown(f"#### {section_name}")
+        if table.empty:
+            render_empty_state(st, "No data available for this detail section.")
+        else:
+            render_dataframe(st, table)
 
 
 def _unique_existing_values(table: pd.DataFrame, column: str) -> list[str]:
@@ -948,6 +1028,81 @@ def _signal_badge_text(row: pd.Series) -> str:
     if _safe_row_text(row, "trend_quality", fallback=""):
         badges.append(("Trend metric available", "available"))
     return badge_list_markdown(badges)
+
+
+def _signal_detail_rows(row: pd.Series, fields: list[tuple[str, str]], source: str) -> list[dict[str, str]]:
+    rows = []
+    for label, column in fields:
+        value = _safe_row_text(row, column)
+        if value == "Not available" and column in {
+            "research_score",
+            "momentum_score",
+            "momentum_1m",
+            "momentum_3m",
+            "momentum_6m",
+            "momentum_12m",
+            "volatility_adjusted_momentum",
+            "distance_from_52week_high",
+            "country_breadth_score",
+            "sector_breadth_score",
+            "cluster_score",
+            "dr_quality_score",
+            "average_traded_value_20d",
+        }:
+            value = _safe_numeric_text(row, column)
+        rows.append({"item": label, "value": value, "source": source, "note": ""})
+    return rows
+
+
+def _signal_warning_rows(row: pd.Series) -> list[dict[str, str]]:
+    rows = []
+    for label, column in [
+        ("Failed filters", "failed_filters"),
+        ("Data-quality warning", "data_quality_warning"),
+        ("DR data-quality warning", "dr_data_quality_warning"),
+    ]:
+        value = _safe_row_text(row, column, fallback="")
+        if value:
+            rows.append({"item": label, "value": value, "source": "stock_ranking", "note": "Review before using this research signal."})
+    security_type = _safe_row_text(row, "SecurityType", fallback="")
+    if security_type.upper() in {"DR", "DRX"}:
+        rows.append(
+            {
+                "item": "DR/DRx separation",
+                "value": "DR/DRx proxy",
+                "source": "stock_ranking",
+                "note": "Do not use DR/DRx rows to judge Thailand domestic breadth.",
+            }
+        )
+    return rows
+
+
+def _signal_data_quality_rows(row: pd.Series) -> list[dict[str, str]]:
+    rows = []
+    for label, column in [
+        ("Country metadata", "Country"),
+        ("Sector metadata", "Sector"),
+        ("Industry metadata", "Industry"),
+        ("Reason text", "reason"),
+        ("Signal type", "signal_type"),
+    ]:
+        value = _safe_row_text(row, column)
+        status = "available" if value != "Not available" else "Needs data source"
+        rows.append({"item": label, "value": status, "source": "stock_ranking", "note": value})
+    return rows
+
+
+def _supporting_row_table(row: pd.Series) -> pd.DataFrame:
+    items = []
+    for column, value in row.items():
+        if isinstance(value, dict):
+            continue
+        try:
+            missing = bool(pd.isna(value))
+        except (TypeError, ValueError):
+            missing = False
+        items.append({"column": str(column), "value": "Not available" if missing else str(value)})
+    return pd.DataFrame(items)
 
 
 def _show_startup_checklist(rows: list[StartupChecklistRow]) -> None:

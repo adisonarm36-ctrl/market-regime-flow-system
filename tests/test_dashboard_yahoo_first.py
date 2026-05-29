@@ -13,6 +13,7 @@ from src.dashboard import (
     disable_yahoo_force_refresh,
     build_demo_run_summary,
     build_signal_card_rows,
+    build_signal_detail_sections,
     build_signal_filter_options,
     build_today_decision_hub_tables,
     filter_signal_ranking,
@@ -689,3 +690,64 @@ def test_signal_card_rows_render_badges_and_missing_fields_without_invention():
     assert cards.loc[1, "country"] == "Not available"
     assert cards.loc[1, "score"] == "Not available"
     assert "[Warning] Failed filters" in cards.loc[1, "badges"]
+
+
+def test_signal_detail_sections_split_fact_assumption_warning_and_quality():
+    row = pd.Series(
+        {
+            "Ticker": "AAA",
+            "SecurityType": "Stock",
+            "Country": "Thailand",
+            "Sector": "Tech",
+            "Industry": "Software",
+            "research_score": 88.0,
+            "momentum_score": 72.5,
+            "reason": "momentum score available",
+            "signal_type": "research signal only",
+            "failed_filters": "",
+            "data_quality_warning": "",
+        }
+    )
+
+    sections = build_signal_detail_sections(row)
+
+    assert set(sections) == {"Facts", "Assumptions", "Warnings", "Data Quality", "Supporting Row"}
+    facts = sections["Facts"]
+    assert facts.loc[facts["item"].eq("Ticker"), "value"].iloc[0] == "AAA"
+    assert facts.loc[facts["item"].eq("Research score"), "value"].iloc[0] == "88.0"
+    assumptions = "\n".join(sections["Assumptions"]["value"].astype(str).tolist())
+    assert "Existing stock_ranking output" in assumptions
+    assert "Needs data source" in assumptions
+    assert sections["Warnings"].empty
+    assert sections["Data Quality"].loc[sections["Data Quality"]["item"].eq("Sector metadata"), "value"].iloc[0] == "available"
+
+
+def test_signal_detail_sections_preserve_dr_boundary_and_missing_metadata():
+    row = pd.Series(
+        {
+            "Ticker": "DR1",
+            "SecurityType": "DR",
+            "Country": "Thailand",
+            "Sector": None,
+            "Industry": None,
+            "research_score": 80.0,
+            "dr_quality_score": 65.0,
+            "reason": "",
+            "signal_type": "research signal only",
+            "failed_filters": "low liquidity",
+            "dr_data_quality_warning": "missing_spread",
+        }
+    )
+
+    sections = build_signal_detail_sections(row)
+
+    warnings = "\n".join(sections["Warnings"].astype(str).stack().tolist())
+    assert "DR/DRx proxy" in warnings
+    assert "Do not use DR/DRx rows to judge Thailand domestic breadth" in warnings
+    assert "low liquidity" in warnings
+    assert "missing_spread" in warnings
+    quality = sections["Data Quality"]
+    assert quality.loc[quality["item"].eq("Sector metadata"), "value"].iloc[0] == "Needs data source"
+    assert quality.loc[quality["item"].eq("Industry metadata"), "value"].iloc[0] == "Needs data source"
+    supporting = sections["Supporting Row"]
+    assert "DR1" in supporting["value"].tolist()
