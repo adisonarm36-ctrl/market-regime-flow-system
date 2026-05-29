@@ -42,6 +42,7 @@ from src.yahoo_universe import build_thailand_domestic_yahoo_ticker_universe
 SAMPLE_DIR = Path(__file__).resolve().parents[1] / "data" / "sample"
 CONFIG_SOURCE_MODE = "Config source"
 MANUAL_FALLBACK_MODE = "Advanced / fallback manual upload"
+TODAY_DECISION_HUB_PAGE = "Today Decision Hub"
 
 
 def _read_csv_upload(uploaded_file) -> pd.DataFrame | None:
@@ -190,6 +191,7 @@ def main() -> None:
             st.error("Could not load config/data_sources.yaml. Use Advanced / fallback manual upload if needed.")
             return
         runtime_config, demo_reference_warnings = apply_demo_reference_runtime_config(config, use_demo_reference_data)
+        dashboard_cache_status: dict[str, object] | None = None
         if use_demo_reference_data:
             st.success("Demo mode is enabled for smoke testing. Not production-ready.")
             st.caption("Bundled reference files are fake/sample-only; replace them with verified local files before research use.")
@@ -226,6 +228,7 @@ def main() -> None:
                 runtime_config = _apply_local_thailand_yahoo_universe(runtime_config, selected_thailand_universe)
             adapter = get_data_adapter(runtime_config)
             cache_status = yahoo_cache_status(adapter)
+            dashboard_cache_status = cache_status
             st.sidebar.write(
                 {
                     "tickers": adapter.tickers,
@@ -366,6 +369,7 @@ def main() -> None:
         )
 
     pages = [
+        TODAY_DECISION_HUB_PAGE,
         "Global Flow Map",
         "Country Market Health",
         "Thailand Market Health",
@@ -380,7 +384,14 @@ def main() -> None:
     ]
     page = st.sidebar.radio("Page", pages)
 
-    if page == "Global Flow Map":
+    if page == TODAY_DECISION_HUB_PAGE:
+        _show_today_decision_hub(
+            outputs,
+            source_label=active_source_label(config) if data_mode == CONFIG_SOURCE_MODE else "active_source: manual upload",
+            demo_reference_enabled=bool(use_demo_reference_data),
+            cache_status=dashboard_cache_status if data_mode == CONFIG_SOURCE_MODE else None,
+        )
+    elif page == "Global Flow Map":
         _show_table("Global Flow Summary", outputs.get("global_flow_summary"))
         _show_table("Asset Class Flow", outputs.get("asset_class_flow_summary"))
     elif page == "Country Market Health":
@@ -446,6 +457,308 @@ def _show_table(title: str, table: pd.DataFrame | None) -> None:
         render_empty_state(st, "No data available for this layer. Missing data is skipped.")
         return
     render_dataframe(st, table)
+
+
+def build_today_decision_hub_tables(
+    outputs: dict[str, pd.DataFrame],
+    source_label: str = "",
+    demo_reference_enabled: bool = False,
+    cache_status: dict[str, object] | None = None,
+) -> dict[str, pd.DataFrame]:
+    """Build presentation tables for the Today Decision Hub from existing outputs only."""
+    return {
+        "Market Regime": _build_market_regime_rows(outputs),
+        "Top Signals": _build_top_signal_rows(outputs.get("stock_ranking", pd.DataFrame())),
+        "Risk Alerts": _build_risk_alert_rows(outputs),
+        "Strategy Health": _build_strategy_health_rows(outputs),
+        "Data Freshness": _build_data_freshness_rows(source_label, demo_reference_enabled, cache_status),
+        "Quick Actions": _build_quick_action_rows(outputs),
+    }
+
+
+def _show_today_decision_hub(
+    outputs: dict[str, pd.DataFrame],
+    source_label: str = "",
+    demo_reference_enabled: bool = False,
+    cache_status: dict[str, object] | None = None,
+) -> None:
+    st.subheader("Today Decision Hub")
+    st.caption("Research signals only. This page summarizes existing outputs and does not change calculations.")
+    tables = build_today_decision_hub_tables(outputs, source_label, demo_reference_enabled, cache_status)
+
+    left, right = st.columns(2)
+    with left:
+        _show_hub_table(
+            "Market Regime",
+            tables["Market Regime"],
+            "Market regime not available. Needs price data and breadth inputs.",
+        )
+        _show_hub_table(
+            "Risk Alerts",
+            tables["Risk Alerts"],
+            "No warnings reported by current outputs.",
+        )
+        _show_hub_table(
+            "Data Freshness",
+            tables["Data Freshness"],
+            "Freshness unavailable. Needs loaded price data or cache metadata.",
+        )
+    with right:
+        _show_hub_table(
+            "Top Signals",
+            tables["Top Signals"],
+            "No research candidates available. Needs metadata, momentum, and ranking outputs.",
+        )
+        _show_hub_table(
+            "Strategy Health",
+            tables["Strategy Health"],
+            "Strategy health unavailable until pipeline outputs exist.",
+        )
+        _show_hub_table(
+            "Quick Actions",
+            tables["Quick Actions"],
+            "Actions unavailable until data source is configured or uploaded.",
+        )
+
+    with st.expander("Raw supporting outputs", expanded=False):
+        _show_table("Global Flow Summary", outputs.get("global_flow_summary"))
+        _show_table("Country Breadth Summary", outputs.get("country_breadth_summary"))
+        _show_table("Thailand Market Health", outputs.get("thailand_market_health"))
+        _show_table("Sector Breadth Summary", outputs.get("sector_breadth_summary"))
+        _show_table("Ranked Research Candidates", outputs.get("stock_ranking"))
+        _show_table("Pipeline Warnings", outputs.get("warnings"))
+
+
+def _show_hub_table(title: str, table: pd.DataFrame, empty_message: str) -> None:
+    st.markdown(f"### {title}")
+    if table.empty:
+        render_empty_state(st, empty_message, action="Inspect source settings, warnings, or raw supporting outputs.")
+        return
+    render_dataframe(st, table)
+
+
+def _build_market_regime_rows(outputs: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    rows: list[dict[str, object]] = []
+    country = _sort_by_existing_score(outputs.get("country_breadth_summary"), "breadth_score")
+    if not country.empty:
+        row = country.iloc[0]
+        rows.append(
+            {
+                "section": "Country market health",
+                "signal": _safe_row_text(row, "regime"),
+                "metric": _safe_numeric_text(row, "breadth_score"),
+                "detail": f"{_safe_row_text(row, 'country')} breadth_score",
+                "source": "country_breadth_summary",
+            }
+        )
+    thailand = _sort_by_existing_score(outputs.get("thailand_market_health"), "breadth_score")
+    if not thailand.empty:
+        row = thailand.iloc[0]
+        rows.append(
+            {
+                "section": "Thailand market health",
+                "signal": _safe_row_text(row, "regime"),
+                "metric": _safe_numeric_text(row, "breadth_score"),
+                "detail": f"{_safe_row_text(row, 'universe')} breadth_score",
+                "source": "thailand_market_health",
+            }
+        )
+    flow = _sort_by_existing_score(outputs.get("global_flow_summary"), "flow_score")
+    if not flow.empty:
+        row = flow.iloc[0]
+        rows.append(
+            {
+                "section": "Global flow proxy",
+                "signal": _safe_row_text(row, "flow_classification"),
+                "metric": _safe_numeric_text(row, "flow_score"),
+                "detail": f"{_safe_row_text(row, 'Ticker')} flow signal proxy",
+                "source": "global_flow_summary",
+            }
+        )
+    sector = _sort_by_existing_score(outputs.get("sector_breadth_summary"), "breadth_score")
+    if not sector.empty:
+        row = sector.iloc[0]
+        rows.append(
+            {
+                "section": "Sector breadth",
+                "signal": _safe_row_text(row, "regime"),
+                "metric": _safe_numeric_text(row, "breadth_score"),
+                "detail": f"{_safe_row_text(row, 'Sector')} breadth_score",
+                "source": "sector_breadth_summary",
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _build_top_signal_rows(stock_ranking: pd.DataFrame | None, limit: int = 5) -> pd.DataFrame:
+    if stock_ranking is None or stock_ranking.empty or "Ticker" not in stock_ranking.columns:
+        return pd.DataFrame()
+    ranking = _sort_by_existing_score(stock_ranking, "research_score").head(limit)
+    rows = []
+    for _, row in ranking.iterrows():
+        rows.append(
+            {
+                "Ticker": _safe_row_text(row, "Ticker"),
+                "research_score": _safe_numeric_text(row, "research_score"),
+                "signal_type": _safe_row_text(row, "signal_type"),
+                "country": _safe_row_text(row, "Country"),
+                "sector": _safe_row_text(row, "Sector"),
+                "reason": _safe_row_text(row, "reason"),
+                "warnings": _combine_row_warnings(row, ["failed_filters", "data_quality_warning", "dr_data_quality_warning"]),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _build_risk_alert_rows(outputs: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    sources = [
+        ("Pipeline", outputs.get("warnings"), "warning"),
+        ("Backtest", outputs.get("backtest_warnings"), "warning"),
+        ("DR quality", outputs.get("dr_quality_warnings"), "warning"),
+    ]
+    rows: list[dict[str, object]] = []
+    for category, table, column in sources:
+        if not isinstance(table, pd.DataFrame) or table.empty or column not in table.columns:
+            continue
+        for value in table[column].dropna().astype(str).head(5):
+            rows.append({"category": category, "status": "warning", "detail": value})
+    return pd.DataFrame(rows)
+
+
+def _build_strategy_health_rows(outputs: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    layer_sources = [
+        ("Global flow", "global_flow_summary"),
+        ("Country breadth", "country_breadth_summary"),
+        ("Thailand market health", "thailand_market_health"),
+        ("Sector breadth", "sector_breadth_summary"),
+        ("Theme clusters", "cluster_summary"),
+        ("Research candidates", "stock_ranking"),
+        ("Redundancy report", "redundancy_report"),
+        ("Backtest assumptions", "backtest_summary"),
+    ]
+    rows = []
+    for layer, key in layer_sources:
+        count = _row_count(outputs.get(key))
+        rows.append(
+            {
+                "layer": layer,
+                "status": "available" if count else "skipped",
+                "rows": count,
+                "source": key,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _build_data_freshness_rows(
+    source_label: str,
+    demo_reference_enabled: bool,
+    cache_status: dict[str, object] | None,
+) -> pd.DataFrame:
+    rows = [
+        {
+            "item": "Source mode",
+            "status": "available" if source_label else "missing",
+            "detail": source_label or "Not available",
+        },
+        {
+            "item": "Demo reference mode",
+            "status": "warning" if demo_reference_enabled else "ok",
+            "detail": "Enabled; fake/sample-only" if demo_reference_enabled else "Disabled",
+        },
+        {
+            "item": "Yahoo data policy",
+            "status": "info",
+            "detail": "Historical/cache-based only; not realtime",
+        },
+    ]
+    if cache_status:
+        rows.extend(
+            [
+                {
+                    "item": "Yahoo cache file",
+                    "status": "available" if cache_status.get("cache_exists") else "missing",
+                    "detail": str(cache_status.get("cache_path", "Not available")),
+                },
+                {
+                    "item": "Yahoo cache freshness",
+                    "status": "warning" if cache_status.get("cache_is_stale") else "ok",
+                    "detail": str(cache_status.get("cache_last_updated", "Not available")),
+                },
+            ]
+        )
+    return pd.DataFrame(rows)
+
+
+def _build_quick_action_rows(outputs: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    stock_count = _row_count(outputs.get("stock_ranking"))
+    warning_count = _row_count(outputs.get("warnings")) + _row_count(outputs.get("backtest_warnings"))
+    report_ready = any(_row_count(outputs.get(key)) for key in ["global_flow_summary", "country_breadth_summary", "stock_ranking"])
+    return pd.DataFrame(
+        [
+            {
+                "action": "Review top research signals",
+                "target": "Stock Ranking",
+                "status": "available" if stock_count else "missing",
+                "detail": f"{stock_count} ranked candidate row(s)",
+            },
+            {
+                "action": "Inspect data-quality warnings",
+                "target": "Data Source Status",
+                "status": "warning" if warning_count else "ok",
+                "detail": f"{warning_count} warning row(s)",
+            },
+            {
+                "action": "Review narrative report",
+                "target": "Daily Report",
+                "status": "available" if report_ready else "missing",
+                "detail": "CSV and HTML export helpers remain unchanged",
+            },
+        ]
+    )
+
+
+def _sort_by_existing_score(table: pd.DataFrame | None, score_column: str) -> pd.DataFrame:
+    if table is None or table.empty:
+        return pd.DataFrame()
+    result = table.copy()
+    if score_column in result.columns:
+        result["_sort_score"] = pd.to_numeric(result[score_column], errors="coerce")
+        result = result.sort_values("_sort_score", ascending=False, na_position="last").drop(columns=["_sort_score"])
+    return result.reset_index(drop=True)
+
+
+def _safe_row_text(row: pd.Series, column: str, fallback: str = "Not available") -> str:
+    if column not in row.index:
+        return fallback
+    value = row.get(column)
+    if pd.isna(value):
+        return fallback
+    text = str(value).strip()
+    return text if text else fallback
+
+
+def _safe_numeric_text(row: pd.Series, column: str, fallback: str = "Not available") -> str:
+    if column not in row.index:
+        return fallback
+    value = pd.to_numeric(row.get(column), errors="coerce")
+    if pd.isna(value):
+        return fallback
+    return f"{float(value):.2f}"
+
+
+def _combine_row_warnings(row: pd.Series, columns: list[str]) -> str:
+    values = []
+    for column in columns:
+        if column not in row.index:
+            continue
+        value = row.get(column)
+        if pd.isna(value):
+            continue
+        text = str(value).strip()
+        if text:
+            values.append(text)
+    return "; ".join(values) if values else "None reported"
 
 
 def _show_startup_checklist(rows: list[StartupChecklistRow]) -> None:
