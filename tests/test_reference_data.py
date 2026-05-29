@@ -2,6 +2,7 @@ import pandas as pd
 import pytest
 
 from src.reference_data import (
+    load_asset_map,
     load_dr_mapping,
     load_country_map,
     load_metadata,
@@ -38,6 +39,27 @@ def test_demo_metadata_covers_default_yahoo_smoke_tickers():
     assert required_tickers.issubset(set(metadata["Ticker"]))
     demo_rows = metadata[metadata["Ticker"].isin(required_tickers)]
     assert demo_rows["DemoData"].astype(str).str.lower().eq("true").all()
+
+
+def test_demo_asset_map_covers_default_yahoo_smoke_tickers():
+    asset_map = load_asset_map("data/reference/asset_map_sample.csv")
+    required_tickers = {
+        "SPY",
+        "QQQ",
+        "IWM",
+        "TLT",
+        "IEF",
+        "SHY",
+        "GLD",
+        "SLV",
+        "USO",
+        "UUP",
+        "BTC-USD",
+        "ETH-USD",
+    }
+
+    assert {"Ticker", "asset_class"}.issubset(asset_map.columns)
+    assert required_tickers.issubset(set(asset_map["Ticker"]))
 
 
 def test_missing_required_metadata_columns_raises_clear_error():
