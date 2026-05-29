@@ -11,11 +11,14 @@ from src.dashboard import (
     apply_yahoo_ticker_universe,
     dashboard_source_options,
     disable_yahoo_force_refresh,
+    summarize_dashboard_warnings,
     yahoo_dependency_diagnostic,
     yahoo_cache_token,
     yahoo_cache_status,
 )
 from src.data_adapters.yahoo_adapter import YahooDataAdapter
+from src.config_validation import apply_demo_reference_mode
+from src.topdown_pipeline import run_pipeline_from_config
 from src.startup_diagnostics import (
     STREAMLIT_VENV_RUN_COMMAND,
     YFINANCE_INSTALL_COMMAND,
@@ -126,6 +129,28 @@ def test_apply_demo_reference_runtime_config_requires_explicit_enable():
     assert enabled["source_settings"]["yahoo"]["reference_data"]["metadata_path"] == "data/reference/metadata_sample.csv"
     assert any("fake/sample data" in warning for warning in enabled_warnings)
     assert config["source_settings"]["yahoo"]["reference_data"]["metadata_path"] == "data/reference/metadata.csv"
+
+
+def test_demo_reference_runtime_config_maps_empty_asset_map_to_sample():
+    config = {
+        "active_source": "yahoo",
+        "source_settings": {
+            "yahoo": {
+                "reference_data": {
+                    "metadata_path": "data/reference/metadata.csv",
+                    "sector_map_path": "data/reference/sector_map.csv",
+                    "country_map_path": "data/reference/country_map.csv",
+                    "asset_map_path": "config/asset_map.yaml",
+                }
+            }
+        },
+    }
+
+    enabled, warnings = apply_demo_reference_runtime_config(config, enabled=True)
+    reference_data = enabled["source_settings"]["yahoo"]["reference_data"]
+
+    assert reference_data["asset_map_path"] == "data/reference/asset_map_sample.csv"
+    assert any("asset_map_path" in warning for warning in warnings)
 
 
 def test_yahoo_dependency_diagnostic_reports_available_with_mock():
@@ -395,3 +420,84 @@ def test_production_reference_readiness_detects_sample_files():
     assert any(row.reference == "Metadata" and row.status == "sample" for row in rows)
     assert any(row.reference == "Thailand DR/DRx mapping" and row.status == "sample" for row in rows)
     assert any(row.reference == "Thailand Yahoo ticker field" and row.status == "warning" for row in rows)
+
+
+def test_demo_mode_pipeline_outputs_global_and_asset_flow_with_default_yahoo_tickers():
+    tickers = [
+        "SPY",
+        "QQQ",
+        "IWM",
+        "TLT",
+        "IEF",
+        "SHY",
+        "GLD",
+        "SLV",
+        "USO",
+        "UUP",
+        "BTC-USD",
+        "ETH-USD",
+    ]
+    dates = pd.date_range("2026-01-01", periods=70)
+    rows = []
+    for ticker_index, ticker in enumerate(tickers):
+        for day_index, date in enumerate(dates):
+            close = 100.0 + ticker_index + day_index * (1 + ticker_index / 20)
+            rows.append(
+                {
+                    "Date": date,
+                    "Ticker": ticker,
+                    "Open": close,
+                    "High": close + 1,
+                    "Low": close - 1,
+                    "Close": close,
+                    "Volume": 1000 + ticker_index,
+                    "Adjusted Close": close,
+                }
+            )
+
+    class FakeYahooAdapter:
+        warnings: list[str] = []
+
+        def load_prices(self):
+            return pd.DataFrame(rows)
+
+    config = {
+        "active_source": "yahoo",
+        "source_settings": {
+            "yahoo": {
+                "tickers": tickers,
+                "reference_data": {
+                    "metadata_path": "data/reference/metadata.csv",
+                    "sector_map_path": "data/reference/sector_map.csv",
+                    "country_map_path": "data/reference/country_map.csv",
+                    "asset_map_path": "config/asset_map.yaml",
+                    "dr_mapping_path": "config/dr_mapping.yaml",
+                },
+            }
+        },
+    }
+    runtime_config, _ = apply_demo_reference_mode(config)
+
+    outputs = run_pipeline_from_config(runtime_config, adapter=FakeYahooAdapter())
+    warnings = "\n".join(outputs["warnings"]["warning"].astype(str).tolist())
+
+    assert not outputs["global_flow_summary"].empty
+    assert not outputs["asset_class_flow_summary"].empty
+    assert set(outputs["global_flow_summary"]["Ticker"]) == set(tickers)
+    assert outputs["data_quality_report"]["metadata_coverage_pct"].iloc[0] == 100
+    assert "Missing metadata columns" not in warnings
+    assert "tickers missing metadata" not in warnings
+
+
+def test_dashboard_warning_summary_collapses_adjusted_close_warnings():
+    grouped = summarize_dashboard_warnings(
+        [
+            "missing adjusted close for SPY; using Close as Adjusted Close",
+            "missing adjusted close for QQQ; using Close as Adjusted Close",
+            "metadata_path skipped: reference path not found",
+        ]
+    )
+
+    optional = "\n".join(grouped["Optional skipped layers"])
+    assert "2 ticker(s) missing adjusted close" in optional
+    assert "SPY, QQQ" in optional

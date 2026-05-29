@@ -1,7 +1,19 @@
-﻿Ticker,SecurityType,Country,Sector,Industry,Universe,Suspended,Name,Currency,Exchange,IsDR,UnderlyingTicker,average_traded_value_20d,Notes
-DEMO_US_EQUITY_ETF,ETF,United States,Equity ETF,Broad Market,Global,False,Fake Demo US Equity ETF,USD,DEMO,False,,1000000,FAKE DEMO reference row only
-DEMO_US_BOND_ETF,ETF,United States,Bond ETF,Treasury,Global,False,Fake Demo Bond ETF,USD,DEMO,False,,900000,FAKE DEMO reference row only
-DEMO_US_COMMODITY_ETF,ETF,United States,Commodity ETF,Gold,Global,False,Fake Demo Commodity ETF,USD,DEMO,False,,850000,FAKE DEMO reference row only
-DEMO_CRYPTO_PROXY,Stock,Global,Crypto Proxy,Digital Assets,Global,False,Fake Demo Crypto Proxy,USD,DEMO,False,,700000,FAKE DEMO reference row only
-DEMO_TH_SAMPLE.BK,Stock,Thailand,Technology,Software,SET ex-DR,False,Fake Demo Thailand Stock,THB,DEMO,False,,600000,FAKE DEMO reference row only
-DEMO_TH_DR,DR,Thailand,Global Proxy,DR,SET ex-DR,False,Fake Demo Thailand DR,THB,DEMO,True,DEMO_US_EQUITY_ETF,500000,FAKE DEMO reference row only
+Ticker,SecurityType,Country,Sector,Industry,Universe,Suspended,Name,Currency,Exchange,IsDR,UnderlyingTicker,average_traded_value_20d,DemoData,Notes
+SPY,ETF,Demo United States,Demo Equity ETF,Demo Broad Market,Demo Global Smoke Test,False,Fake/sample SPY metadata,USD,DEMO,False,,1000000,True,FAKE DEMO reference row only; not production classification
+QQQ,ETF,Demo United States,Demo Equity ETF,Demo Growth Proxy,Demo Global Smoke Test,False,Fake/sample QQQ metadata,USD,DEMO,False,,950000,True,FAKE DEMO reference row only; not production classification
+IWM,ETF,Demo United States,Demo Equity ETF,Demo Small Cap Proxy,Demo Global Smoke Test,False,Fake/sample IWM metadata,USD,DEMO,False,,850000,True,FAKE DEMO reference row only; not production classification
+TLT,ETF,Demo United States,Demo Bond ETF,Demo Long Treasury,Demo Global Smoke Test,False,Fake/sample TLT metadata,USD,DEMO,False,,750000,True,FAKE DEMO reference row only; not production classification
+IEF,ETF,Demo United States,Demo Bond ETF,Demo Intermediate Treasury,Demo Global Smoke Test,False,Fake/sample IEF metadata,USD,DEMO,False,,700000,True,FAKE DEMO reference row only; not production classification
+SHY,ETF,Demo United States,Demo Bond ETF,Demo Short Treasury,Demo Global Smoke Test,False,Fake/sample SHY metadata,USD,DEMO,False,,650000,True,FAKE DEMO reference row only; not production classification
+GLD,ETF,Demo Global,Demo Commodity ETF,Demo Gold Proxy,Demo Global Smoke Test,False,Fake/sample GLD metadata,USD,DEMO,False,,600000,True,FAKE DEMO reference row only; not production classification
+SLV,ETF,Demo Global,Demo Commodity ETF,Demo Silver Proxy,Demo Global Smoke Test,False,Fake/sample SLV metadata,USD,DEMO,False,,550000,True,FAKE DEMO reference row only; not production classification
+USO,ETF,Demo Global,Demo Commodity ETF,Demo Oil Proxy,Demo Global Smoke Test,False,Fake/sample USO metadata,USD,DEMO,False,,500000,True,FAKE DEMO reference row only; not production classification
+UUP,ETF,Demo United States,Demo Currency ETF,Demo USD Proxy,Demo Global Smoke Test,False,Fake/sample UUP metadata,USD,DEMO,False,,450000,True,FAKE DEMO reference row only; not production classification
+BTC-USD,ETF,Demo Global,Demo Crypto Proxy,Demo Bitcoin Proxy,Demo Global Smoke Test,False,Fake/sample BTC-USD metadata,USD,DEMO,False,,400000,True,FAKE DEMO reference row only; not production classification
+ETH-USD,ETF,Demo Global,Demo Crypto Proxy,Demo Ethereum Proxy,Demo Global Smoke Test,False,Fake/sample ETH-USD metadata,USD,DEMO,False,,350000,True,FAKE DEMO reference row only; not production classification
+DEMO_US_EQUITY_ETF,ETF,United States,Equity ETF,Broad Market,Global,False,Fake Demo US Equity ETF,USD,DEMO,False,,1000000,True,FAKE DEMO reference row only
+DEMO_US_BOND_ETF,ETF,United States,Bond ETF,Treasury,Global,False,Fake Demo Bond ETF,USD,DEMO,False,,900000,True,FAKE DEMO reference row only
+DEMO_US_COMMODITY_ETF,ETF,United States,Commodity ETF,Gold,Global,False,Fake Demo Commodity ETF,USD,DEMO,False,,850000,True,FAKE DEMO reference row only
+DEMO_CRYPTO_PROXY,Stock,Global,Crypto Proxy,Digital Assets,Global,False,Fake Demo Crypto Proxy,USD,DEMO,False,,700000,True,FAKE DEMO reference row only
+DEMO_TH_SAMPLE.BK,Stock,Thailand,Technology,Software,SET ex-DR,False,Fake Demo Thailand Stock,THB,DEMO,False,,600000,True,FAKE DEMO reference row only
+DEMO_TH_DR,DR,Thailand,Global Proxy,DR,SET ex-DR,False,Fake Demo Thailand DR,THB,DEMO,True,DEMO_US_EQUITY_ETF,500000,True,FAKE DEMO reference row only

@@ -1,0 +1,17 @@
+Ticker,asset_class,group,subgroup
+SPY,Demo Equity,Demo Risk Assets,Demo Broad Market
+QQQ,Demo Equity,Demo Risk Assets,Demo Growth Proxy
+IWM,Demo Equity,Demo Risk Assets,Demo Small Cap Proxy
+TLT,Demo Bonds,Demo Defensive Assets,Demo Long Treasury
+IEF,Demo Bonds,Demo Defensive Assets,Demo Intermediate Treasury
+SHY,Demo Bonds,Demo Defensive Assets,Demo Short Treasury
+GLD,Demo Commodities,Demo Real Assets,Demo Gold Proxy
+SLV,Demo Commodities,Demo Real Assets,Demo Silver Proxy
+USO,Demo Commodities,Demo Real Assets,Demo Oil Proxy
+UUP,Demo Currency,Demo Defensive Assets,Demo USD Proxy
+BTC-USD,Demo Crypto,Demo Alternative Assets,Demo Bitcoin Proxy
+ETH-USD,Demo Crypto,Demo Alternative Assets,Demo Ethereum Proxy
+DEMO_US_EQUITY_ETF,Demo Equity,Demo Risk Assets,Demo Broad Market
+DEMO_US_BOND_ETF,Demo Bonds,Demo Defensive Assets,Demo Treasury
+DEMO_US_COMMODITY_ETF,Demo Commodities,Demo Real Assets,Demo Gold Proxy
+DEMO_CRYPTO_PROXY,Demo Crypto,Demo Alternative Assets,Demo Digital Assets

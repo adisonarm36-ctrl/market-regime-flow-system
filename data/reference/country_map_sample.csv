@@ -1,4 +1,16 @@
-﻿Ticker,Country
+Ticker,Country
+SPY,Demo United States
+QQQ,Demo United States
+IWM,Demo United States
+TLT,Demo United States
+IEF,Demo United States
+SHY,Demo United States
+GLD,Demo Global
+SLV,Demo Global
+USO,Demo Global
+UUP,Demo United States
+BTC-USD,Demo Global
+ETH-USD,Demo Global
 DEMO_US_EQUITY_ETF,United States
 DEMO_US_BOND_ETF,United States
 DEMO_US_COMMODITY_ETF,United States

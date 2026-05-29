@@ -14,6 +14,7 @@ DEMO_REFERENCE_PATHS = {
     "metadata_path": "data/reference/metadata_sample.csv",
     "sector_map_path": "data/reference/sector_map_sample.csv",
     "country_map_path": "data/reference/country_map_sample.csv",
+    "asset_map_path": "data/reference/asset_map_sample.csv",
     "dr_mapping_path": "data/sample/dr_mapping_sample.csv",
     "thailand_universe_path": "data/reference/thailand/thailand_universe_sample.csv",
     "thailand_sector_map_path": "data/reference/thailand/thailand_sector_map_sample.csv",
@@ -174,7 +175,8 @@ def apply_demo_reference_mode(config: dict, source_name: str | None = None) -> t
 
     for key, demo_path in DEMO_REFERENCE_PATHS.items():
         current_path = reference_data.get(key)
-        if current_path and Path(current_path).exists():
+        current_exists = bool(current_path and Path(current_path).exists())
+        if current_exists and not _should_replace_existing_reference_for_demo(key, Path(current_path)):
             continue
         if Path(demo_path).exists():
             reference_data[key] = demo_path
@@ -197,3 +199,24 @@ def validate_data_sources_config(config: dict) -> list[str]:
     else:
         warnings.append("Yahoo source settings missing")
     return warnings
+
+
+def _should_replace_existing_reference_for_demo(key: str, current_path: Path) -> bool:
+    """Return whether an existing reference path is unusable for demo output."""
+    if key != "asset_map_path":
+        return False
+    return _reference_file_is_empty(current_path)
+
+
+def _reference_file_is_empty(path: Path) -> bool:
+    """Best-effort empty-reference detection for bundled demo path selection."""
+    try:
+        if path.suffix.lower() in {".csv", ".txt"}:
+            return pd.read_csv(path).empty
+        text = path.read_text(encoding="utf-8").strip()
+    except Exception:
+        return False
+    if not text:
+        return True
+    meaningful_lines = [line.strip() for line in text.splitlines() if line.strip() and not line.strip().startswith("#")]
+    return bool(meaningful_lines) and all(line.endswith("{}") for line in meaningful_lines)

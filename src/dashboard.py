@@ -559,8 +559,53 @@ def _show_status_tables(outputs: dict[str, pd.DataFrame]) -> None:
     _show_table("Pipeline Layer Status", outputs.get("pipeline_layer_status"))
     warnings = outputs.get("warnings")
     if warnings is not None and not warnings.empty:
-        for warning in warnings["warning"].dropna():
-            st.warning(warning)
+        _show_pipeline_warnings(warnings["warning"].dropna().astype(str).tolist())
+
+
+def summarize_dashboard_warnings(warnings: list[str]) -> dict[str, list[str]]:
+    """Group repeated pipeline warnings for a less noisy first-run dashboard."""
+    grouped: dict[str, list[str]] = {
+        "Hard blockers": [],
+        "Production readiness warnings": [],
+        "Demo/sample warnings": [],
+        "Optional skipped layers": [],
+        "Other warnings": [],
+    }
+    adjusted_close_tickers: list[str] = []
+    for warning in warnings:
+        lowered = warning.lower()
+        if "missing adjusted close for " in lowered:
+            ticker = warning.split("missing adjusted close for ", 1)[1].split(";", 1)[0].strip()
+            adjusted_close_tickers.append(ticker)
+        elif "failed and no usable cache" in lowered or "blocked:" in lowered:
+            grouped["Hard blockers"].append(warning)
+        elif "fake/sample" in lowered or "demo reference" in lowered:
+            grouped["Demo/sample warnings"].append(warning)
+        elif "metadata" in lowered or "production" in lowered or "reference" in lowered:
+            grouped["Production readiness warnings"].append(warning)
+        elif "skipped" in lowered or "missing" in lowered or "limited" in lowered:
+            grouped["Optional skipped layers"].append(warning)
+        else:
+            grouped["Other warnings"].append(warning)
+    if adjusted_close_tickers:
+        preview = ", ".join(adjusted_close_tickers[:8])
+        suffix = "..." if len(adjusted_close_tickers) > 8 else ""
+        grouped["Optional skipped layers"].append(
+            f"{len(adjusted_close_tickers)} ticker(s) missing adjusted close; using Close as Adjusted Close: {preview}{suffix}"
+        )
+    return {label: values for label, values in grouped.items() if values}
+
+
+def _show_pipeline_warnings(warnings: list[str]) -> None:
+    grouped = summarize_dashboard_warnings(warnings)
+    if not grouped:
+        return
+    total = sum(len(values) for values in grouped.values())
+    st.warning(f"{total} pipeline warning(s) reported. Details are grouped below.")
+    for label, values in grouped.items():
+        with st.expander(label, expanded=label == "Hard blockers"):
+            for warning in values:
+                st.warning(warning)
 
 
 def _load_dashboard_config() -> dict | None:

@@ -1,4 +1,16 @@
-﻿Ticker,Sector,Industry
+Ticker,Sector,Industry
+SPY,Demo Equity ETF,Demo Broad Market
+QQQ,Demo Equity ETF,Demo Growth Proxy
+IWM,Demo Equity ETF,Demo Small Cap Proxy
+TLT,Demo Bond ETF,Demo Long Treasury
+IEF,Demo Bond ETF,Demo Intermediate Treasury
+SHY,Demo Bond ETF,Demo Short Treasury
+GLD,Demo Commodity ETF,Demo Gold Proxy
+SLV,Demo Commodity ETF,Demo Silver Proxy
+USO,Demo Commodity ETF,Demo Oil Proxy
+UUP,Demo Currency ETF,Demo USD Proxy
+BTC-USD,Demo Crypto Proxy,Demo Bitcoin Proxy
+ETH-USD,Demo Crypto Proxy,Demo Ethereum Proxy
 DEMO_US_EQUITY_ETF,Equity ETF,Broad Market
 DEMO_US_BOND_ETF,Bond ETF,Treasury
 DEMO_US_COMMODITY_ETF,Commodity ETF,Gold

@@ -138,3 +138,21 @@ def test_demo_reference_mode_preserves_existing_production_paths(tmp_path):
     assert reference_data["metadata_path"] == str(metadata_path)
     assert reference_data["sector_map_path"] == "data/reference/sector_map_sample.csv"
     assert DEMO_REFERENCE_MODE_WARNING in warnings
+
+
+def test_demo_reference_mode_replaces_empty_asset_map():
+    config = {
+        "active_source": "yahoo",
+        "source_settings": {
+            "yahoo": {
+                "reference_data": {
+                    "asset_map_path": "config/asset_map.yaml",
+                }
+            }
+        },
+    }
+
+    result, warnings = apply_demo_reference_mode(config)
+
+    assert result["source_settings"]["yahoo"]["reference_data"]["asset_map_path"] == "data/reference/asset_map_sample.csv"
+    assert any("asset_map_path" in warning for warning in warnings)
