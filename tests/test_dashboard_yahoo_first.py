@@ -11,6 +11,8 @@ from src.dashboard import (
     apply_yahoo_ticker_universe,
     dashboard_source_options,
     disable_yahoo_force_refresh,
+    build_demo_run_summary,
+    should_enable_demo_reference_by_default,
     summarize_dashboard_warnings,
     yahoo_dependency_diagnostic,
     yahoo_cache_token,
@@ -129,6 +131,47 @@ def test_apply_demo_reference_runtime_config_requires_explicit_enable():
     assert enabled["source_settings"]["yahoo"]["reference_data"]["metadata_path"] == "data/reference/metadata_sample.csv"
     assert any("fake/sample data" in warning for warning in enabled_warnings)
     assert config["source_settings"]["yahoo"]["reference_data"]["metadata_path"] == "data/reference/metadata.csv"
+
+
+def test_first_run_missing_production_refs_defaults_to_demo_mode():
+    config = {
+        "active_source": "yahoo",
+        "source_settings": {
+            "yahoo": {
+                "reference_data": {
+                    "metadata_path": "data/reference/metadata.csv",
+                    "sector_map_path": "data/reference/sector_map.csv",
+                    "country_map_path": "data/reference/country_map.csv",
+                    "asset_map_path": "config/asset_map.yaml",
+                }
+            }
+        },
+    }
+
+    assert should_enable_demo_reference_by_default(config) is True
+
+
+def test_first_run_demo_default_stays_off_when_production_refs_exist(tmp_path):
+    metadata = tmp_path / "metadata.csv"
+    sector = tmp_path / "sector.csv"
+    country = tmp_path / "country.csv"
+    metadata.write_text("Ticker,SecurityType,Country,Sector,Industry,Universe,Suspended\n", encoding="utf-8")
+    sector.write_text("Ticker,Sector\n", encoding="utf-8")
+    country.write_text("Ticker,Country\n", encoding="utf-8")
+    config = {
+        "active_source": "yahoo",
+        "source_settings": {
+            "yahoo": {
+                "reference_data": {
+                    "metadata_path": str(metadata),
+                    "sector_map_path": str(sector),
+                    "country_map_path": str(country),
+                }
+            }
+        },
+    }
+
+    assert should_enable_demo_reference_by_default(config) is False
 
 
 def test_demo_reference_runtime_config_maps_empty_asset_map_to_sample():
@@ -487,6 +530,13 @@ def test_demo_mode_pipeline_outputs_global_and_asset_flow_with_default_yahoo_tic
     assert outputs["data_quality_report"]["metadata_coverage_pct"].iloc[0] == 100
     assert "Missing metadata columns" not in warnings
     assert "tickers missing metadata" not in warnings
+
+    readiness_rows = build_production_reference_readiness(config)
+    summary = build_demo_run_summary(outputs, demo_reference_enabled=True, production_readiness_rows=readiness_rows)
+    assert summary["global_flow_rows"].iloc[0] > 0
+    assert summary["asset_class_flow_rows"].iloc[0] > 0
+    assert summary["metadata_coverage"].iloc[0] == "100.0%"
+    assert "not production-ready" in summary["production_readiness_status"].iloc[0]
 
 
 def test_dashboard_warning_summary_collapses_adjusted_close_warnings():
