@@ -881,50 +881,51 @@ git push origin main
 - Focused and full tests pass.
 - Branch is pushed, merged into `main`, `main` is pushed, and final status is clean.
 
-## Phase Executor Prompt Template
+## Final Response Format
 
-Use this template to run one phase at a time.
+Every phase execution should end with this compact report:
+
+```text
+Phase run: <phase name>
+Branch used: <branch name>
+Commit hash: <short commit hash>
+Merge commit hash: <short merge commit hash>
+Files changed:
+- <path>
+Focused tests run: <commands and result>
+Full test result: <command and result>
+Manual dashboard check: <done / not run with reason>
+Final git status: <clean / dirty with details>
+Recommended next phase: <next phase name, or stop if Phase 7 is complete>
+```
+
+If the task is documentation-only and tests are skipped under `CODEX_WORKFLOW.md`, say that directly in `Focused tests run` and `Full test result`.
+
+## Short Codex Prompt Template
+
+Use this short template for future phase runs. The user should only need to fill in the phase name, current branch, and commit message; Codex should read this runbook for scope, safety rules, test commands, merge workflow, stop conditions, and final response format.
 
 ```text
 Read AGENTS.md, CODEX_WORKFLOW.md, TROUBLESHOOTING.md, RUN_STATE.md, PROJECT_STATUS.md, PHASE_PLAN.md, docs/design/momentum-dashboard-redesign.md, docs/design/momentum-dashboard-baseline-inspection.md, and docs/design/momentum-dashboard-phase-runbook.md first.
 
-PHASE_TO_RUN:
-<PHASE_TO_RUN>
+Phase name:
+<Phase name>
 
-BRANCH_NAME:
-<BRANCH_NAME>
+Current branch:
+<Current branch>
 
-COMMIT_MESSAGE:
-<COMMIT_MESSAGE>
+Commit message:
+<Commit message>
 
 Goal:
 Execute only the named Momentum Dashboard UX phase from docs/design/momentum-dashboard-phase-runbook.md.
 
 Rules:
+- Follow the runbook exactly for the selected phase.
 - Start from latest main.
+- Use the branch name listed for the selected phase unless the current branch above is already the intended phase branch.
 - Run only this phase.
 - Do not continue to the next phase.
 - Stop after merge to main, push main, and final tests/checks.
-- Do not force push.
-- Do not run git reset --hard.
-- Do not commit data/cache.
-- If untracked data/cache exists, inspect it and remove it only after confirming it is runtime Yahoo cache.
-- If any other dirty files exist before work starts, stop and report.
-- Do not touch secrets, .env, tokens, credentials, cookies, or private keys.
-- No live trading, broker integration, scraping, API keys, realtime, or buy/sell recommendations.
-- Keep outputs as research signals only.
-- Do not change financial/backtest calculations unless explicitly required and approved.
-- Preserve existing behavior unless the phase specifically changes presentation.
-
-Required final response:
-- phase run
-- branch used
-- commit hash
-- merge commit hash
-- files changed
-- focused tests run
-- full test result
-- final git status
-- recommended next phase
+- Use the final response format from the runbook.
 ```
-
