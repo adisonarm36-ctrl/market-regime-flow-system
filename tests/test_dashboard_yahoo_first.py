@@ -12,7 +12,10 @@ from src.dashboard import (
     dashboard_source_options,
     disable_yahoo_force_refresh,
     build_demo_run_summary,
+    build_signal_card_rows,
+    build_signal_filter_options,
     build_today_decision_hub_tables,
+    filter_signal_ranking,
     should_enable_demo_reference_by_default,
     summarize_dashboard_warnings,
     yahoo_dependency_diagnostic,
@@ -607,3 +610,82 @@ def test_today_decision_hub_empty_outputs_are_explicitly_empty():
     assert tables["Strategy Health"]["status"].eq("skipped").all()
     assert "Not available" in tables["Data Freshness"]["detail"].tolist()
     assert tables["Quick Actions"]["status"].tolist() == ["missing", "ok", "missing"]
+
+
+def test_signal_filter_options_use_existing_stock_ranking_fields():
+    ranking = pd.DataFrame(
+        {
+            "Ticker": ["AAA", "BBB", "DR1"],
+            "SecurityType": ["Stock", "Stock", "DR"],
+            "Country": ["Thailand", "United States", "Thailand"],
+            "Sector": ["Tech", "Health", ""],
+            "signal_type": ["research signal only", "research signal only", "research signal only"],
+            "failed_filters": ["", "low liquidity", ""],
+            "data_quality_warning": ["", "", "missing_spread"],
+        }
+    )
+
+    options = build_signal_filter_options(ranking)
+
+    assert options["countries"] == ["Thailand", "United States"]
+    assert options["sectors"] == ["Health", "Tech"]
+    assert options["signal_types"] == ["research signal only"]
+    assert options["data_quality"] == ["No warnings reported", "Warnings reported"]
+    assert options["failed_filter_states"] == ["Failed filters", "No failed filters"]
+
+
+def test_filter_signal_ranking_preserves_source_rows_and_sorting():
+    ranking = pd.DataFrame(
+        {
+            "Ticker": ["AAA", "BBB", "CCC"],
+            "Country": ["Thailand", "Thailand", "United States"],
+            "Sector": ["Tech", "Health", "Tech"],
+            "signal_type": ["research signal only", "research signal only", "research signal only"],
+            "research_score": [70.0, 90.0, 80.0],
+            "failed_filters": ["", "low liquidity", ""],
+            "data_quality_warning": ["", "missing metadata", ""],
+        }
+    )
+
+    filtered = filter_signal_ranking(
+        ranking,
+        countries=["Thailand"],
+        data_quality=["Warnings reported"],
+        failed_filter_states=["Failed filters"],
+        sort_by="research_score",
+    )
+
+    assert filtered["Ticker"].tolist() == ["BBB"]
+    assert ranking["Ticker"].tolist() == ["AAA", "BBB", "CCC"]
+
+    sorted_all = filter_signal_ranking(ranking, sort_by="research_score")
+    assert sorted_all["Ticker"].tolist() == ["BBB", "CCC", "AAA"]
+
+
+def test_signal_card_rows_render_badges_and_missing_fields_without_invention():
+    ranking = pd.DataFrame(
+        {
+            "Ticker": ["DR1", "AAA"],
+            "SecurityType": ["DR", "Stock"],
+            "Country": ["Thailand", None],
+            "Sector": ["", "Tech"],
+            "Industry": [None, "Software"],
+            "research_score": [88.0, None],
+            "momentum_score": [77.0, 66.0],
+            "trend_quality": ["above 50ma", ""],
+            "signal_type": ["research signal only", "research signal only"],
+            "reason": ["DR quality available", ""],
+            "failed_filters": ["", "failed liquidity"],
+            "data_quality_warning": ["missing_spread", ""],
+        }
+    )
+
+    cards = build_signal_card_rows(ranking)
+
+    assert cards.loc[0, "score"] == "88.00"
+    assert "[Warning] DR/DRx proxy" in cards.loc[0, "badges"]
+    assert "[Warning] Low data confidence" in cards.loc[0, "badges"]
+    assert cards.loc[0, "sector"] == "Not available"
+    assert cards.loc[1, "country"] == "Not available"
+    assert cards.loc[1, "score"] == "Not available"
+    assert "[Warning] Failed filters" in cards.loc[1, "badges"]
