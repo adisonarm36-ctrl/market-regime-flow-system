@@ -12,6 +12,7 @@ from src.dashboard import (
     dashboard_source_options,
     disable_yahoo_force_refresh,
     build_demo_run_summary,
+    build_today_decision_hub_tables,
     should_enable_demo_reference_by_default,
     summarize_dashboard_warnings,
     yahoo_dependency_diagnostic,
@@ -551,3 +552,58 @@ def test_dashboard_warning_summary_collapses_adjusted_close_warnings():
     optional = "\n".join(grouped["Optional skipped layers"])
     assert "2 ticker(s) missing adjusted close" in optional
     assert "SPY, QQQ" in optional
+
+
+def test_today_decision_hub_uses_existing_outputs_without_new_scores():
+    outputs = {
+        "global_flow_summary": pd.DataFrame({"Ticker": ["SPY"], "flow_score": [88.2], "flow_classification": ["Strong Inflow"]}),
+        "country_breadth_summary": pd.DataFrame({"country": ["Thailand"], "breadth_score": [66.0], "regime": ["Bull"]}),
+        "thailand_market_health": pd.DataFrame({"universe": ["SET ex-DR"], "breadth_score": [64.0], "regime": ["Bull"]}),
+        "sector_breadth_summary": pd.DataFrame({"Sector": ["Tech"], "breadth_score": [75.0], "regime": ["Strong Bull"]}),
+        "stock_ranking": pd.DataFrame(
+            {
+                "Ticker": ["AAA", "BBB"],
+                "research_score": [82.0, 75.0],
+                "signal_type": ["research signal only", "research signal only"],
+                "Country": ["Thailand", "Thailand"],
+                "Sector": ["Tech", None],
+                "reason": ["momentum score available", ""],
+                "failed_filters": ["", "low liquidity"],
+                "data_quality_warning": ["", "missing sector"],
+            }
+        ),
+        "warnings": pd.DataFrame({"warning": ["metadata_path skipped: reference path not found"]}),
+        "backtest_warnings": pd.DataFrame({"warning": ["historical research assumptions only, not financial advice"]}),
+    }
+
+    tables = build_today_decision_hub_tables(
+        outputs,
+        source_label="active_source: yahoo",
+        demo_reference_enabled=True,
+        cache_status={"cache_exists": True, "cache_path": "data/cache/yahoo/demo.parquet", "cache_is_stale": False, "cache_last_updated": "2026-05-29"},
+    )
+
+    assert set(tables) == {"Market Regime", "Top Signals", "Risk Alerts", "Strategy Health", "Data Freshness", "Quick Actions"}
+    assert tables["Market Regime"]["source"].tolist() == [
+        "country_breadth_summary",
+        "thailand_market_health",
+        "global_flow_summary",
+        "sector_breadth_summary",
+    ]
+    assert tables["Top Signals"]["Ticker"].tolist() == ["AAA", "BBB"]
+    assert tables["Top Signals"].loc[1, "sector"] == "Not available"
+    assert "low liquidity" in tables["Top Signals"].loc[1, "warnings"]
+    assert not any("buy" in " ".join(table.astype(str).stack().tolist()).lower() for table in tables.values())
+    assert any("fake/sample-only" in detail for detail in tables["Data Freshness"]["detail"].astype(str))
+    assert any(tables["Risk Alerts"]["category"].eq("Backtest"))
+
+
+def test_today_decision_hub_empty_outputs_are_explicitly_empty():
+    tables = build_today_decision_hub_tables({}, source_label="", demo_reference_enabled=False)
+
+    assert tables["Market Regime"].empty
+    assert tables["Top Signals"].empty
+    assert tables["Risk Alerts"].empty
+    assert tables["Strategy Health"]["status"].eq("skipped").all()
+    assert "Not available" in tables["Data Freshness"]["detail"].tolist()
+    assert tables["Quick Actions"]["status"].tolist() == ["missing", "ok", "missing"]
