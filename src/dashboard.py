@@ -19,7 +19,7 @@ from src.data_adapters import get_data_adapter
 from src.data_adapters.csv_adapter import CsvDataAdapter
 from src.data_adapters.yahoo_adapter import YahooDataAdapter
 from src.data_loader import pivot_prices, pivot_volume
-from src.dashboard_components import render_dataframe, render_empty_state
+from src.dashboard_components import badge_list_markdown, render_dataframe, render_empty_state
 from src.report_generator import build_daily_report
 from src.startup_diagnostics import (
     StartupChecklistRow,
@@ -414,7 +414,7 @@ def main() -> None:
         _show_table("Cluster Members", outputs.get("cluster_membership"))
         _show_table("Redundant Instruments", outputs.get("redundancy_report"))
     elif page == "Stock Ranking":
-        _show_table("Ranked Research Candidates", outputs.get("stock_ranking"))
+        _show_signal_browser(outputs.get("stock_ranking"))
     elif page == "DR Global Proxy":
         st.warning("⚠️ **RESEARCH SIGNALS ONLY**: The metrics, rankings, and indicators presented below are purely for research and quantitative signal screening. They do NOT constitute financial advice or investment recommendations. DRs and underlying foreign proxies carry FX, tracking, and liquidity risk.")
         
@@ -759,6 +759,195 @@ def _combine_row_warnings(row: pd.Series, columns: list[str]) -> str:
         if text:
             values.append(text)
     return "; ".join(values) if values else "None reported"
+
+
+def build_signal_filter_options(stock_ranking: pd.DataFrame | None) -> dict[str, list[str]]:
+    """Return available signal-browser filter values without changing source rows."""
+    if stock_ranking is None or stock_ranking.empty:
+        return {
+            "countries": [],
+            "sectors": [],
+            "signal_types": [],
+            "data_quality": [],
+            "failed_filter_states": [],
+        }
+    result = {
+        "countries": _unique_existing_values(stock_ranking, "Country"),
+        "sectors": _unique_existing_values(stock_ranking, "Sector"),
+        "signal_types": _unique_existing_values(stock_ranking, "signal_type"),
+        "data_quality": [],
+        "failed_filter_states": [],
+    }
+    quality_labels = [_signal_quality_label(row) for _, row in stock_ranking.iterrows()]
+    failed_labels = [_signal_failed_filter_label(row) for _, row in stock_ranking.iterrows()]
+    result["data_quality"] = sorted(set(quality_labels))
+    result["failed_filter_states"] = sorted(set(failed_labels))
+    return result
+
+
+def filter_signal_ranking(
+    stock_ranking: pd.DataFrame | None,
+    countries: list[str] | None = None,
+    sectors: list[str] | None = None,
+    signal_types: list[str] | None = None,
+    data_quality: list[str] | None = None,
+    failed_filter_states: list[str] | None = None,
+    sort_by: str = "research_score",
+    ascending: bool = False,
+) -> pd.DataFrame:
+    """Return a filtered and sorted copy of stock ranking rows for presentation only."""
+    if stock_ranking is None or stock_ranking.empty:
+        return pd.DataFrame()
+    result = stock_ranking.copy()
+    result = _filter_by_values(result, "Country", countries)
+    result = _filter_by_values(result, "Sector", sectors)
+    result = _filter_by_values(result, "signal_type", signal_types)
+    if data_quality:
+        quality = result.apply(_signal_quality_label, axis=1)
+        result = result[quality.isin(data_quality)]
+    if failed_filter_states:
+        failed = result.apply(_signal_failed_filter_label, axis=1)
+        result = result[failed.isin(failed_filter_states)]
+    if sort_by in result.columns:
+        sortable = pd.to_numeric(result[sort_by], errors="coerce")
+        result = result.assign(_sort_value=sortable).sort_values("_sort_value", ascending=ascending, na_position="last").drop(columns=["_sort_value"])
+    elif "Ticker" in result.columns:
+        result = result.sort_values("Ticker", ascending=True, na_position="last")
+    return result.reset_index(drop=True)
+
+
+def build_signal_card_rows(stock_ranking: pd.DataFrame | None, limit: int | None = None) -> pd.DataFrame:
+    """Build scan-friendly signal card rows from existing stock-ranking columns."""
+    if stock_ranking is None or stock_ranking.empty or "Ticker" not in stock_ranking.columns:
+        return pd.DataFrame()
+    source = stock_ranking.head(limit) if limit else stock_ranking
+    rows = []
+    for _, row in source.iterrows():
+        rows.append(
+            {
+                "Ticker": _safe_row_text(row, "Ticker"),
+                "badges": _signal_badge_text(row),
+                "score": _safe_numeric_text(row, "research_score"),
+                "momentum_score": _safe_numeric_text(row, "momentum_score"),
+                "trend_quality": _safe_row_text(row, "trend_quality"),
+                "country": _safe_row_text(row, "Country"),
+                "sector": _safe_row_text(row, "Sector"),
+                "industry": _safe_row_text(row, "Industry"),
+                "signal_type": _safe_row_text(row, "signal_type"),
+                "why": _safe_row_text(row, "reason"),
+                "warnings": _combine_row_warnings(row, ["failed_filters", "data_quality_warning", "dr_data_quality_warning"]),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _show_signal_browser(stock_ranking: pd.DataFrame | None) -> None:
+    st.subheader("Signal Explorer")
+    st.caption("Research signals only. Cards and filters use existing stock_ranking columns without changing ranking calculations.")
+    if stock_ranking is None or stock_ranking.empty:
+        render_empty_state(st, "No research candidates available. Needs metadata, momentum, and ranking outputs.")
+        _show_table("Ranked Research Candidates", stock_ranking)
+        return
+
+    options = build_signal_filter_options(stock_ranking)
+    with st.expander("Signal filters and sorting", expanded=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            selected_countries = st.multiselect("Country", options["countries"])
+            selected_sectors = st.multiselect("Sector", options["sectors"])
+            selected_signal_types = st.multiselect("Signal type", options["signal_types"])
+        with col2:
+            selected_quality = st.multiselect("Data quality", options["data_quality"])
+            selected_failed = st.multiselect("Failed-filter state", options["failed_filter_states"])
+            sort_options = [column for column in ["research_score", "momentum_score", "country_breadth_score", "sector_breadth_score", "Ticker"] if column in stock_ranking.columns]
+            sort_by = st.selectbox("Sort by", sort_options or ["Ticker"], index=0)
+            sort_direction = st.radio("Sort direction", ["Descending", "Ascending"], horizontal=True)
+
+    filtered = filter_signal_ranking(
+        stock_ranking,
+        countries=selected_countries,
+        sectors=selected_sectors,
+        signal_types=selected_signal_types,
+        data_quality=selected_quality,
+        failed_filter_states=selected_failed,
+        sort_by=sort_by,
+        ascending=sort_direction == "Ascending",
+    )
+    st.write(f"{len(filtered)} of {len(stock_ranking)} research candidate row(s) shown.")
+    card_rows = build_signal_card_rows(filtered)
+    if card_rows.empty:
+        render_empty_state(st, "No research candidates match the selected filters.", action="Clear filters or inspect the raw ranking table.")
+    else:
+        for _, card in card_rows.iterrows():
+            _render_signal_card(card)
+
+    with st.expander("Raw stock_ranking table", expanded=False):
+        _show_table("Ranked Research Candidates", stock_ranking)
+
+
+def _render_signal_card(card: pd.Series) -> None:
+    with st.container(border=True):
+        st.markdown(f"### {card['Ticker']}")
+        st.markdown(str(card["badges"]))
+        cols = st.columns(3)
+        cols[0].metric("Research score", str(card["score"]))
+        cols[1].metric("Momentum score", str(card["momentum_score"]))
+        cols[2].metric("Trend quality", str(card["trend_quality"]))
+        st.write(
+            {
+                "country": card["country"],
+                "sector": card["sector"],
+                "industry": card["industry"],
+                "signal_type": card["signal_type"],
+            }
+        )
+        st.caption(f"Why this signal: {card['why']}")
+        if card["warnings"] != "None reported":
+            st.warning(f"Warnings: {card['warnings']}")
+
+
+def _unique_existing_values(table: pd.DataFrame, column: str) -> list[str]:
+    if column not in table.columns:
+        return []
+    values = []
+    for value in table[column].dropna().astype(str):
+        text = value.strip()
+        if text:
+            values.append(text)
+    return sorted(set(values))
+
+
+def _filter_by_values(table: pd.DataFrame, column: str, selected: list[str] | None) -> pd.DataFrame:
+    if not selected or column not in table.columns:
+        return table
+    values = table[column].fillna("").astype(str).str.strip()
+    return table[values.isin(selected)]
+
+
+def _signal_quality_label(row: pd.Series) -> str:
+    warnings = _combine_row_warnings(row, ["data_quality_warning", "dr_data_quality_warning"])
+    return "Warnings reported" if warnings != "None reported" else "No warnings reported"
+
+
+def _signal_failed_filter_label(row: pd.Series) -> str:
+    failed = _safe_row_text(row, "failed_filters", fallback="")
+    return "Failed filters" if failed else "No failed filters"
+
+
+def _signal_badge_text(row: pd.Series) -> str:
+    badges: list[tuple[str, str]] = [("Research signal", "info")]
+    security_type = _safe_row_text(row, "SecurityType", fallback="")
+    if security_type.upper() in {"DR", "DRX"}:
+        badges.append(("DR/DRx proxy", "warning"))
+    if _signal_failed_filter_label(row) == "Failed filters":
+        badges.append(("Failed filters", "warning"))
+    if _signal_quality_label(row) == "Warnings reported":
+        badges.append(("Low data confidence", "warning"))
+    if _safe_row_text(row, "Sector", fallback=""):
+        badges.append(("Sector context", "available"))
+    if _safe_row_text(row, "trend_quality", fallback=""):
+        badges.append(("Trend metric available", "available"))
+    return badge_list_markdown(badges)
 
 
 def _show_startup_checklist(rows: list[StartupChecklistRow]) -> None:
