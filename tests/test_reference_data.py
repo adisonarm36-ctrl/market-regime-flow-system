@@ -15,6 +15,29 @@ def test_load_metadata_csv_and_validate_schema():
     metadata = load_metadata("data/reference/metadata_sample.csv")
 
     assert {"Ticker", "SecurityType", "Country", "Sector", "Industry", "Universe", "Suspended"}.issubset(metadata.columns)
+    assert "average_traded_value_20d" in metadata.columns
+
+
+def test_demo_metadata_covers_default_yahoo_smoke_tickers():
+    metadata = load_metadata("data/reference/metadata_sample.csv")
+    required_tickers = {
+        "SPY",
+        "QQQ",
+        "IWM",
+        "TLT",
+        "IEF",
+        "SHY",
+        "GLD",
+        "SLV",
+        "USO",
+        "UUP",
+        "BTC-USD",
+        "ETH-USD",
+    }
+
+    assert required_tickers.issubset(set(metadata["Ticker"]))
+    demo_rows = metadata[metadata["Ticker"].isin(required_tickers)]
+    assert demo_rows["DemoData"].astype(str).str.lower().eq("true").all()
 
 
 def test_missing_required_metadata_columns_raises_clear_error():
