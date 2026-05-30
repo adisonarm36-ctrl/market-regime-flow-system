@@ -2,7 +2,7 @@
 
 ## Last Completed Work
 
-Phase 8B: Promote reviewed Yahoo candidates workflow.
+Phase 8A.1: Yahoo candidate map generation fix.
 
 The project is safe to continue from the current codebase. CSV remains supported, manual upload remains an Advanced/Fallback workflow, Yahoo/yfinance is historical/cache-based only, and opt-in backtests are research assumptions only.
 
@@ -16,19 +16,21 @@ The dashboard now reports production reference readiness for configured local fi
 
 The repo now includes `scripts/bootstrap_yahoo_reference_data.py` and `src/yahoo_reference_bootstrap.py` to generate Yahoo-derived metadata, sector, country, asset-map, and download-report candidates under `data/reference/generated/`. Generated CSVs are local ignored artifacts and every row is marked `NeedsReview`; they do not replace production reference files.
 
+Yahoo sector/country candidate generation now emits reviewable map rows when Yahoo metadata or conservative fallback fields exist. Sector/country map candidates include `YahooTicker`, `IsFallbackDerived`, missing-field notes, and provenance notes. Default sample asset-map hints can produce review-only sector candidates, while country fallback remains limited to obvious crypto `-USD` pairs unless Yahoo supplies country metadata.
+
 The repo now also includes `scripts/promote_yahoo_candidates.py` and `src/yahoo_candidate_promotion.py`. Promotion is dry-run by default, only accepts `Reviewed` or `Approved` rows, reports configured ticker coverage gaps, backs up existing production CSVs before overwrite, and requires `--apply` to write production files.
 
 First-run usability is complete through Phase 7F. README, status, run-state, phase plan, and first-run plan docs now describe the dependency diagnostics, demo reference mode, startup checklist, Yahoo historical smoke test, production reference readiness, manual upload fallback, common first-run errors, and known pytest cache warning.
 
 ## Current Test Result
 
-`131 passed, 1 pytest cache warning` on 2026-05-27 with Python 3.14.2.
+`173 passed` on 2026-05-30 with Python 3.11.9.
 
 The warning is the known Windows `.pytest_cache` creation/cleanup issue documented in `TROUBLESHOOTING.md`; it does not affect tracked files or test pass/fail status.
 
 ## Next Phase
 
-No first-run usability phase remains active.
+After Phase 8A.1 verification, recommended next work remains manual review of generated Yahoo candidate rows before any promotion.
 
 Recommended next work is user-provided DR/DRx mapping and Thailand-specific DR quality data verification, plus manual review of generated Yahoo candidate rows before any promotion.
 
@@ -37,17 +39,16 @@ Recommended next work is user-provided DR/DRx mapping and Thailand-specific DR q
 ```text
 Read AGENTS.md, CODEX_WORKFLOW.md, RUN_STATE.md, PROJECT_STATUS.md, PHASE_PLAN.md, and TROUBLESHOOTING.md first.
 
-Review production-data readiness for the Yahoo-first research workflow.
+Review generated Yahoo candidate CSVs and promote only manually verified rows.
 
 Goal:
-Identify remaining data-readiness gaps without adding live APIs, scraping, broker integration, realtime data, or financial advice.
+Manually verify Yahoo-derived and fallback-derived candidate rows before production promotion.
 
 Tasks:
-- Verify which local reference files are fake/demo samples.
-- List required verified replacement files for production research.
-- Confirm manual upload fallback remains available.
-- Confirm Yahoo remains historical/cache-based only.
-- Run tests if source or docs change.
+- Run `scripts/bootstrap_yahoo_reference_data.py`.
+- Review generated metadata, sector, country, and asset-map candidates.
+- Change only trusted rows from `NeedsReview` to `Reviewed` or `Approved`.
+- Run `scripts/promote_yahoo_candidates.py` dry-run before any `--apply`.
 ```
 
 ## Handoff Notes

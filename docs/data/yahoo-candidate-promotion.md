@@ -12,6 +12,7 @@ Promotion is never automatic. The dashboard does not run this workflow. The scri
 4. Change `VerificationStatus` from `NeedsReview` to `Reviewed` or `Approved`.
 5. Fill required production fields such as `Universe` and `Suspended` for metadata rows.
 6. Keep `Source = Yahoo` and `IsYahooDerived = true` so provenance remains visible.
+7. Review any `IsFallbackDerived = true`, `FallbackFields`, `MissingFields`, or `Notes` values carefully; fallback-derived rows are not verified production classifications.
 
 Rows left as `NeedsReview` are not promoted.
 
@@ -64,6 +65,7 @@ The promotion workflow checks:
 - rows are `Reviewed` or `Approved`
 - `Source` remains `Yahoo`
 - `IsYahooDerived` remains true
+- fallback provenance columns remain visible where generated
 - important fields are not blank
 - duplicate reviewed tickers are blocked
 - configured Yahoo ticker coverage gaps are reported

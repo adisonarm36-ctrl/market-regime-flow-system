@@ -92,15 +92,50 @@ def test_bootstrap_yahoo_reference_candidates_marks_all_rows_needs_review():
     assert aaa["RecentAverageVolume20D"] == "200.00"
     assert aaa["HistoricalStart"] == "2024-01-02"
     assert aaa["MissingFields"] == ""
+    assert bool(aaa["IsFallbackDerived"]) is False
     crypto = result.metadata[result.metadata["Ticker"].eq("BTC-USD")].iloc[0]
     assert crypto["Country"] == "Global"
     assert crypto["Sector"] == "Crypto"
     assert crypto["SecurityType"] == "Crypto"
+    assert bool(crypto["IsFallbackDerived"]) is True
+    assert "Country" in crypto["FallbackFields"]
     assert "Exchange" in crypto["MissingFields"]
     assert result.sector_map["Ticker"].tolist() == ["AAA", "BTC-USD"]
+    assert result.sector_map["YahooTicker"].tolist() == ["AAA", "BTC-USD"]
+    assert result.sector_map["VerificationStatus"].eq("NeedsReview").all()
+    assert result.sector_map.loc[result.sector_map["Ticker"].eq("BTC-USD"), "IsFallbackDerived"].iloc[0] == True
     assert result.country_map["Ticker"].tolist() == ["AAA", "BTC-USD"]
+    assert result.country_map["YahooTicker"].tolist() == ["AAA", "BTC-USD"]
+    assert result.country_map["VerificationStatus"].eq("NeedsReview").all()
     assert set(result.asset_map["Ticker"]) == {"AAA", "BTC-USD"}
     assert result.download_report["Status"].tolist() == ["Fetched", "Fetched"]
+    assert "Yahoo metadata" in result.download_report.loc[0, "SectorMapStatus"]
+    assert "conservative fallback" in result.download_report.loc[1, "CountryMapStatus"]
+
+
+def test_sector_candidates_use_asset_hint_fallback_without_country_inference():
+    yf = FakeYFinance(
+        {
+            "SPY": FakeTicker({"shortName": "SPY", "quoteType": "ETF", "currency": "USD"}),
+        }
+    )
+
+    result = bootstrap_yahoo_reference_candidates(
+        ["SPY"],
+        yfinance_module=yf,
+        asset_hint_map={"SPY": {"asset_class": "Equity", "group": "Risk Assets", "subgroup": "Broad Market"}},
+    )
+
+    assert result.metadata.loc[0, "Sector"] == "Equity"
+    assert result.metadata.loc[0, "IsFallbackDerived"] == True
+    assert result.metadata.loc[0, "FallbackFields"] == "Sector"
+    assert result.sector_map.loc[0, "Ticker"] == "SPY"
+    assert result.sector_map.loc[0, "YahooTicker"] == "SPY"
+    assert result.sector_map.loc[0, "Sector"] == "Equity"
+    assert result.sector_map.loc[0, "IsFallbackDerived"] == True
+    assert "Industry" in result.sector_map.loc[0, "MissingFields"]
+    assert result.country_map.empty
+    assert "No country map row generated" in result.download_report.loc[0, "CountryMapStatus"]
 
 
 def test_bootstrap_records_errors_without_stopping_other_tickers():

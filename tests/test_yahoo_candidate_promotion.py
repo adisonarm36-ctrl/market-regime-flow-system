@@ -28,6 +28,7 @@ def _write_config(path: Path, tickers: list[str]) -> None:
 def _reviewed_candidates(candidate_dir: Path, status: str = "Reviewed") -> None:
     candidate_dir.mkdir(parents=True, exist_ok=True)
     audit = {"Source": "Yahoo", "VerificationStatus": status, "IsYahooDerived": True, "Notes": "manual review complete"}
+    fallback = {"IsFallbackDerived": False, "FallbackFields": ""}
     pd.DataFrame(
         [
             {
@@ -47,14 +48,19 @@ def _reviewed_candidates(candidate_dir: Path, status: str = "Reviewed") -> None:
                 "MissingFields": "",
                 "Universe": "Global",
                 "Suspended": False,
+                **fallback,
                 **audit,
             }
         ]
     ).to_csv(candidate_dir / "yahoo_metadata_candidates.csv", index=False)
-    pd.DataFrame([{"Ticker": "AAA", "Sector": "Technology", "Industry": "Software", **audit}]).to_csv(
+    pd.DataFrame(
+        [{"Ticker": "AAA", "YahooTicker": "AAA", "Sector": "Technology", "Industry": "Software", "MissingFields": "", "IsFallbackDerived": False, **audit}]
+    ).to_csv(
         candidate_dir / "yahoo_sector_map_candidates.csv", index=False
     )
-    pd.DataFrame([{"Ticker": "AAA", "Country": "United States", **audit}]).to_csv(
+    pd.DataFrame(
+        [{"Ticker": "AAA", "YahooTicker": "AAA", "Country": "United States", "MissingFields": "", "IsFallbackDerived": False, **audit}]
+    ).to_csv(
         candidate_dir / "yahoo_country_map_candidates.csv", index=False
     )
     pd.DataFrame([{"Ticker": "AAA", "asset_class": "Equity", "group": "Risk Assets", "subgroup": "Software", **audit}]).to_csv(
