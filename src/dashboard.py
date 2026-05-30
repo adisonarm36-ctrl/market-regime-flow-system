@@ -20,7 +20,7 @@ from src.data_adapters.csv_adapter import CsvDataAdapter
 from src.data_adapters.yahoo_adapter import YahooDataAdapter
 from src.data_loader import pivot_prices, pivot_volume
 from src.dashboard_components import badge_list_markdown, render_dataframe, render_empty_state
-from src.report_generator import build_daily_report
+from src.report_generator import build_daily_report, build_narrative_report_sections, flatten_narrative_report_sections
 from src.startup_diagnostics import (
     StartupChecklistRow,
     ProductionReferenceReadinessRow,
@@ -445,10 +445,7 @@ def main() -> None:
     elif page == "Backtest":
         _show_backtest_page(outputs)
     elif page == "Daily Report":
-        report = build_daily_report(outputs)
-        for title, text in report.items():
-            st.subheader(title.replace("_", " ").title())
-            st.write(text)
+        _show_daily_report_page(outputs)
 
 
 def _show_table(title: str, table: pd.DataFrame | None) -> None:
@@ -457,6 +454,62 @@ def _show_table(title: str, table: pd.DataFrame | None) -> None:
         render_empty_state(st, "No data available for this layer. Missing data is skipped.")
         return
     render_dataframe(st, table)
+
+
+def _show_daily_report_page(outputs: dict[str, pd.DataFrame]) -> None:
+    st.subheader("Narrative Report Review")
+    st.caption("Research signals only. Confirmed export formats are CSV raw tables and HTML narrative sections.")
+    sections = build_narrative_report_sections(outputs)
+    for title, fields in sections.items():
+        with st.container(border=True):
+            st.markdown(f"### {title}")
+            for label in ["Fact", "Assumption", "Recommendation", "Warning"]:
+                value = fields.get(label, "Not available")
+                st.markdown(f"**{label}:** {value}")
+
+    with st.expander("Legacy narrative sections used for HTML export", expanded=False):
+        report = build_daily_report(outputs)
+        for title, text in report.items():
+            st.markdown(f"#### {title.replace('_', ' ').title()}")
+            st.write(text)
+
+    with st.expander("Raw data tables available for CSV export", expanded=False):
+        exported_any = False
+        for title, table in outputs.items():
+            if isinstance(table, pd.DataFrame) and not table.empty:
+                exported_any = True
+                _show_table(title, table)
+        if not exported_any:
+            render_empty_state(st, "No non-empty raw output tables are available for CSV export.")
+
+    with st.expander("Supported export formats", expanded=True):
+        format_rows = pd.DataFrame(
+            [
+                {
+                    "format": "CSV",
+                    "status": "supported",
+                    "scope": "Raw non-empty DataFrame outputs through existing export_report_to_csv.",
+                },
+                {
+                    "format": "HTML",
+                    "status": "supported",
+                    "scope": "Narrative report sections through existing export_report_to_html.",
+                },
+                {
+                    "format": "Markdown",
+                    "status": "future enhancement",
+                    "scope": "Not advertised as supported by this dashboard.",
+                },
+                {
+                    "format": "PDF",
+                    "status": "future enhancement",
+                    "scope": "Not advertised as supported by this dashboard.",
+                },
+            ]
+        )
+        render_dataframe(st, format_rows)
+        flattened = flatten_narrative_report_sections(sections)
+        render_dataframe(st, pd.DataFrame({"section": list(flattened.keys()), "content": list(flattened.values())}))
 
 
 def build_today_decision_hub_tables(
