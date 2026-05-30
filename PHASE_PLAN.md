@@ -2,7 +2,7 @@
 
 Current implementation focus: no active first-run usability phase.
 
-The Yahoo-first transition is complete through Phase 6F. Phase 7A through 7F first-run usability work is complete. The system supports configured CSV/manual data, optional Yahoo historical OHLCV loading, local reference-driven metadata/universe/mapping workflows, explicit Yahoo cache controls, opt-in research backtests from configured historical prices, missing-yfinance diagnostics, explicit runtime demo reference bootstrap mode, a Yahoo startup checklist before configured loading, an explicit Yahoo historical smoke test, production reference readiness checks, and finalized first-run documentation.
+The Yahoo-first transition is complete through Phase 6F. Phase 7A through 7F first-run usability work is complete. Phase 8A adds a Yahoo metadata bootstrap that writes generated NeedsReview candidate files without replacing production references. The system supports configured CSV/manual data, optional Yahoo historical OHLCV loading, local reference-driven metadata/universe/mapping workflows, explicit Yahoo cache controls, opt-in research backtests from configured historical prices, missing-yfinance diagnostics, explicit runtime demo reference bootstrap mode, a Yahoo startup checklist before configured loading, an explicit Yahoo historical smoke test, production reference readiness checks, and finalized first-run documentation.
 
 ## Completed Milestones
 
@@ -19,6 +19,7 @@ The Yahoo-first transition is complete through Phase 6F. Phase 7A through 7F fir
 - Yahoo historical smoke test uses configured tickers and cache-first behavior and reports rows loaded, date range, cache status, warnings, and errors.
 - Production reference readiness checks report missing files, required columns, fake/sample files, and local Yahoo ticker fields without inferring mappings or classifications.
 - First-run docs cover install/run commands, demo vs production reference mode, Yahoo historical/cache limitations, manual upload fallback, common first-run errors, and regression test expectations.
+- Yahoo metadata bootstrap writes candidate metadata, sector, country, asset-map, download-report, and promotion-review CSVs under `data/reference/generated/`; generated CSVs are local ignored artifacts and all rows require manual review.
 
 ## Current Constraints
 
@@ -27,6 +28,7 @@ The Yahoo-first transition is complete through Phase 6F. Phase 7A through 7F fir
 - Preserve CSV and manual upload fallback.
 - Keep Yahoo historical/cache-based only.
 - Keep local reference files as the source of truth for metadata, Thailand universe, DR/DRx mapping, security type, sector/country maps, and local DR quality data.
+- Keep Yahoo-derived metadata bootstrap outputs as generated candidates only; do not silently promote them into production CSV/YAML files.
 - Keep outputs labeled as research signals or research assumptions only.
 
 ## Recommended Next Work
@@ -37,6 +39,7 @@ Goal: prepare the existing research workflow for real local data without adding 
 
 Expected scope:
 - Inventory fake/demo sample files and identify verified local replacements needed for research use.
+- Review Yahoo metadata candidates generated under `data/reference/generated/` and manually promote only verified rows.
 - Validate real local Thailand universe, security type, liquidity, sector/industry, and DR/DRx mapping files.
 - Validate local metadata and Yahoo ticker fields without inferring missing symbols.
 - Confirm cache behavior and manual fallback instructions remain clear.

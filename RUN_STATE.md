@@ -2,7 +2,7 @@
 
 ## Last Completed Work
 
-Phase 7F: First-run usability documentation finalization and regression tests.
+Phase 8A: Yahoo metadata bootstrap workflow.
 
 The project is safe to continue from the current codebase. CSV remains supported, manual upload remains an Advanced/Fallback workflow, Yahoo/yfinance is historical/cache-based only, and opt-in backtests are research assumptions only.
 
@@ -13,6 +13,8 @@ Before configured Yahoo loading runs, the dashboard now shows a startup checklis
 The dashboard now includes an explicit `Run Yahoo historical smoke test` button that uses configured tickers and cache-first behavior, then reports rows loaded, date range, cache status, warnings, and errors. It is labeled as a historical connectivity/cache check only.
 
 The dashboard now reports production reference readiness for configured local files. It checks required columns, fake/sample file usage, missing files, and local Yahoo ticker fields without inventing mappings or classifications.
+
+The repo now includes `scripts/bootstrap_yahoo_reference_data.py` and `src/yahoo_reference_bootstrap.py` to generate Yahoo-derived metadata, sector, country, asset-map, and download-report candidates under `data/reference/generated/`. Generated CSVs are local ignored artifacts and every row is marked `NeedsReview`; they do not replace production reference files.
 
 First-run usability is complete through Phase 7F. README, status, run-state, phase plan, and first-run plan docs now describe the dependency diagnostics, demo reference mode, startup checklist, Yahoo historical smoke test, production reference readiness, manual upload fallback, common first-run errors, and known pytest cache warning.
 
@@ -26,7 +28,7 @@ The warning is the known Windows `.pytest_cache` creation/cleanup issue document
 
 No first-run usability phase remains active.
 
-Recommended next work is production data verification and documentation/test maintenance.
+Recommended next work is user-provided DR/DRx mapping and Thailand-specific DR quality data verification, plus manual review/promotion of Yahoo metadata candidates.
 
 ## Exact Next Prompt
 
@@ -61,4 +63,5 @@ Tasks:
 - Yahoo smoke test is historical/cache-only and not data completeness validation.
 - Production readiness checks must never infer missing mappings or classifications.
 - Yahoo historical data is price-only; local reference files remain required for metadata, Thailand universe, DR/DRx mapping, security type, sector/country maps, and local DR quality data.
+- Yahoo metadata bootstrap outputs are candidates only and must remain under generated ignored files until manually reviewed.
 - Do not invent Yahoo ticker mappings.
