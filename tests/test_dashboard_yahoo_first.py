@@ -14,6 +14,7 @@ from src.dashboard import (
     disable_yahoo_force_refresh,
     build_demo_run_summary,
     build_signal_card_rows,
+    build_signal_card_summary_rows,
     build_signal_detail_sections,
     build_signal_filter_options,
     build_today_decision_hub_tables,
@@ -702,6 +703,15 @@ def test_signal_card_rows_render_badges_and_missing_fields_without_invention():
     assert cards.loc[1, "country"] == "Not available"
     assert cards.loc[1, "score"] == "Not available"
     assert "[Warning] Failed filters" in cards.loc[1, "badges"]
+
+    summary_rows = build_signal_card_summary_rows(cards.loc[0])
+
+    assert summary_rows == [
+        {"label": "Country", "value": "Thailand"},
+        {"label": "Sector", "value": "Not available"},
+        {"label": "Industry", "value": "Not available"},
+        {"label": "Signal type", "value": "research signal only"},
+    ]
 
 
 def test_signal_detail_sections_split_fact_assumption_warning_and_quality():
