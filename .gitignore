@@ -10,3 +10,4 @@ Thumbs.db
 data/cache/
 data/reference/generated/*.csv
 !data/reference/generated/.gitkeep
+data/reference/backups/
