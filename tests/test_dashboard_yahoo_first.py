@@ -9,6 +9,7 @@ from src.dashboard import (
     apply_demo_reference_runtime_config,
     apply_yahoo_runtime_options,
     apply_yahoo_ticker_universe,
+    build_decision_hub_card_rows,
     dashboard_source_options,
     disable_yahoo_force_refresh,
     build_demo_run_summary,
@@ -561,6 +562,7 @@ def test_dashboard_warning_summary_collapses_adjusted_close_warnings():
 def test_today_decision_hub_uses_existing_outputs_without_new_scores():
     outputs = {
         "global_flow_summary": pd.DataFrame({"Ticker": ["SPY"], "flow_score": [88.2], "flow_classification": ["Strong Inflow"]}),
+        "asset_class_flow_summary": pd.DataFrame({"asset_class": ["Demo Equity"], "flow_score": [81.0], "instrument_count": [3]}),
         "country_breadth_summary": pd.DataFrame({"country": ["Thailand"], "breadth_score": [66.0], "regime": ["Bull"]}),
         "thailand_market_health": pd.DataFrame({"universe": ["SET ex-DR"], "breadth_score": [64.0], "regime": ["Bull"]}),
         "sector_breadth_summary": pd.DataFrame({"Sector": ["Tech"], "breadth_score": [75.0], "regime": ["Strong Bull"]}),
@@ -587,13 +589,14 @@ def test_today_decision_hub_uses_existing_outputs_without_new_scores():
         cache_status={"cache_exists": True, "cache_path": "data/cache/yahoo/demo.parquet", "cache_is_stale": False, "cache_last_updated": "2026-05-29"},
     )
 
-    assert set(tables) == {"Market Regime", "Top Signals", "Risk Alerts", "Strategy Health", "Data Freshness", "Quick Actions"}
+    assert set(tables) == {"Market Regime", "Flow Signals", "Top Signals", "Risk Alerts", "Strategy Health", "Data Freshness", "Quick Actions"}
     assert tables["Market Regime"]["source"].tolist() == [
         "country_breadth_summary",
         "thailand_market_health",
         "global_flow_summary",
         "sector_breadth_summary",
     ]
+    assert tables["Flow Signals"]["source"].tolist() == ["global_flow_summary", "asset_class_flow_summary"]
     assert tables["Top Signals"]["Ticker"].tolist() == ["AAA", "BBB"]
     assert tables["Top Signals"].loc[1, "sector"] == "Not available"
     assert "low liquidity" in tables["Top Signals"].loc[1, "warnings"]
@@ -601,11 +604,20 @@ def test_today_decision_hub_uses_existing_outputs_without_new_scores():
     assert any("fake/sample-only" in detail for detail in tables["Data Freshness"]["detail"].astype(str))
     assert any(tables["Risk Alerts"]["category"].eq("Backtest"))
 
+    market_cards = build_decision_hub_card_rows("Market Regime", tables["Market Regime"])
+    flow_cards = build_decision_hub_card_rows("Flow Signals", tables["Flow Signals"])
+
+    assert market_cards.loc[0, "title"] == "Country market health"
+    assert "breadth_score" in market_cards.loc[0, "detail"]
+    assert flow_cards["title"].tolist() == ["SPY", "Demo Equity"]
+    assert "Source:" in flow_cards.loc[0, "caption"]
+
 
 def test_today_decision_hub_empty_outputs_are_explicitly_empty():
     tables = build_today_decision_hub_tables({}, source_label="", demo_reference_enabled=False)
 
     assert tables["Market Regime"].empty
+    assert tables["Flow Signals"].empty
     assert tables["Top Signals"].empty
     assert tables["Risk Alerts"].empty
     assert tables["Strategy Health"]["status"].eq("skipped").all()

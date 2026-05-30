@@ -190,6 +190,27 @@ def render_dataframe(st_module, table: pd.DataFrame) -> None:
     st_module.dataframe(table, width="stretch")
 
 
+def table_shape_text(table: pd.DataFrame) -> str:
+    """Return concise row/column context for a table."""
+    return f"{len(table)} row(s), {len(table.columns)} column(s)"
+
+
+def build_table_index(tables: Mapping[str, pd.DataFrame]) -> pd.DataFrame:
+    """Return a compact index for non-empty tables without rendering all rows."""
+    rows = []
+    for name, table in tables.items():
+        if isinstance(table, pd.DataFrame) and not table.empty:
+            rows.append(
+                {
+                    "table": str(name),
+                    "rows": len(table),
+                    "columns": len(table.columns),
+                    "status": "available",
+                }
+            )
+    return pd.DataFrame(rows)
+
+
 def safe_display_text(value: object, fallback: str = "Not available") -> str:
     """Return display text without inventing unavailable values."""
     if value is None:
