@@ -19,7 +19,7 @@ from src.data_adapters import get_data_adapter
 from src.data_adapters.csv_adapter import CsvDataAdapter
 from src.data_adapters.yahoo_adapter import YahooDataAdapter
 from src.data_loader import pivot_prices, pivot_volume
-from src.dashboard_components import MetricCard, badge_list_markdown, build_table_index, render_dataframe, render_empty_state, render_metric_card, table_shape_text
+from src.dashboard_components import MetricCard, badge_list_markdown, build_table_index, render_dataframe, render_empty_state, render_metric_card, safe_display_text, table_shape_text
 from src.report_generator import build_daily_report, build_narrative_report_sections, flatten_narrative_report_sections
 from src.startup_diagnostics import (
     StartupChecklistRow,
@@ -416,7 +416,7 @@ def main() -> None:
     elif page == "Stock Ranking":
         _show_signal_browser(outputs.get("stock_ranking"))
     elif page == "DR Global Proxy":
-        st.warning("⚠️ **RESEARCH SIGNALS ONLY**: The metrics, rankings, and indicators presented below are purely for research and quantitative signal screening. They do NOT constitute financial advice or investment recommendations. DRs and underlying foreign proxies carry FX, tracking, and liquidity risk.")
+        st.warning("[Warning] **RESEARCH SIGNALS ONLY**: The metrics, rankings, and indicators presented below are purely for research and quantitative signal screening. They do NOT constitute financial advice or investment recommendations. DRs and underlying foreign proxies carry FX, tracking, and liquidity risk.")
         
         tabs = st.tabs([
             "Execution Ready Rankings",
@@ -471,7 +471,7 @@ def _show_table_browser(title: str, tables: dict[str, pd.DataFrame | None]) -> N
     st.caption("Table index is shown first to avoid rendering every large table on each dashboard rerun.")
     render_dataframe(st, index)
     selected = st.selectbox(
-        f"Select table to inspect - {title}",
+        f"Select evidence table to inspect - {title}",
         list(available.keys()),
         key=f"table_browser_{_safe_widget_key(title)}",
     )
@@ -1176,20 +1176,14 @@ def _show_signal_browser(stock_ranking: pd.DataFrame | None) -> None:
 
 def _render_signal_card(card: pd.Series) -> None:
     with st.container(border=True):
-        st.markdown(f"### {card['Ticker']}")
+        st.markdown(f"### Research signal: {card['Ticker']}")
         st.markdown(str(card["badges"]))
         cols = st.columns(3)
         cols[0].metric("Research score", str(card["score"]))
         cols[1].metric("Momentum score", str(card["momentum_score"]))
         cols[2].metric("Trend quality", str(card["trend_quality"]))
-        st.write(
-            {
-                "country": card["country"],
-                "sector": card["sector"],
-                "industry": card["industry"],
-                "signal_type": card["signal_type"],
-            }
-        )
+        for item in build_signal_card_summary_rows(card):
+            st.caption(f"{item['label']}: {item['value']}")
         st.caption(f"Why this signal: {card['why']}")
         if card["warnings"] != "None reported":
             st.warning(f"Warnings: {card['warnings']}")
@@ -1197,6 +1191,21 @@ def _render_signal_card(card: pd.Series) -> None:
         if isinstance(detail_sections, dict):
             with st.expander(f"Signal detail for {card['Ticker']}", expanded=False):
                 _show_signal_detail_sections(detail_sections)
+
+
+def build_signal_card_summary_rows(card: pd.Series) -> list[dict[str, str]]:
+    """Return compact, labeled card rows without exposing a raw dict."""
+    fields = [
+        ("Country", "country"),
+        ("Sector", "sector"),
+        ("Industry", "industry"),
+        ("Signal type", "signal_type"),
+    ]
+    rows = []
+    for label, key in fields:
+        value = card.get(key, "Not available")
+        rows.append({"label": label, "value": safe_display_text(value)})
+    return rows
 
 
 def _show_signal_detail_sections(sections: dict[str, pd.DataFrame]) -> None:
@@ -1605,8 +1614,7 @@ def _show_backtest_page(outputs: dict[str, pd.DataFrame]) -> None:
         for title, table in evidence_tables.items():
             _show_table(title, table)
     with st.expander("Raw backtest outputs", expanded=False):
-        for title, table in raw_tables.items():
-            _show_table(title, table)
+        _show_table_browser("Raw backtest outputs", raw_tables)
 
 
 def _sidebar_backtest_config(enabled: bool) -> BacktestConfig | None:
@@ -1624,15 +1632,20 @@ def _show_status_tables(outputs: dict[str, pd.DataFrame]) -> None:
     st.subheader("Data Source Status")
     st.caption("Detailed source, reference, and optional-layer diagnostics are grouped below.")
     with st.expander("Data source and reference diagnostics", expanded=False):
-        _show_table("Reference Data Status", outputs.get("data_quality_report"))
-        _show_table("Thailand Reference Status", outputs.get("thailand_reference_report"))
-        _show_table("Thailand Eligibility Status", outputs.get("thailand_eligibility_report"))
-        _show_table("Thailand DR / DRx Status", outputs.get("thailand_dr_mapping_report"))
-        _show_table("DR Execution Data Quality", outputs.get("dr_execution_quality_data_report"))
-        _show_table("DR Fair Value Coverage", outputs.get("dr_fair_value_coverage_report"))
-        _show_table("DR Tracking Coverage", outputs.get("dr_tracking_coverage_report"))
-        _show_table("Tickers Missing Metadata", outputs.get("reference_data_report"))
-        _show_table("Pipeline Layer Status", outputs.get("pipeline_layer_status"))
+        _show_table_browser(
+            "Data source and reference diagnostics",
+            {
+                "Reference Data Status": outputs.get("data_quality_report"),
+                "Thailand Reference Status": outputs.get("thailand_reference_report"),
+                "Thailand Eligibility Status": outputs.get("thailand_eligibility_report"),
+                "Thailand DR / DRx Status": outputs.get("thailand_dr_mapping_report"),
+                "DR Execution Data Quality": outputs.get("dr_execution_quality_data_report"),
+                "DR Fair Value Coverage": outputs.get("dr_fair_value_coverage_report"),
+                "DR Tracking Coverage": outputs.get("dr_tracking_coverage_report"),
+                "Tickers Missing Metadata": outputs.get("reference_data_report"),
+                "Pipeline Layer Status": outputs.get("pipeline_layer_status"),
+            },
+        )
     warnings = outputs.get("warnings")
     if warnings is not None and not warnings.empty:
         _show_pipeline_warnings(warnings["warning"].dropna().astype(str).tolist())
