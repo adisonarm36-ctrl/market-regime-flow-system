@@ -348,6 +348,16 @@ Demo reference mode is for smoke testing only. Production research requires veri
 
 Yahoo/yfinance is used for historical OHLCV prices only. Metadata and mappings stay local because Yahoo metadata coverage can be incomplete and is not suitable for Thailand domestic breadth, DR mapping, or custom research universes.
 
+Phase 8A adds an optional Yahoo metadata bootstrap for review candidates. It can ask yfinance for non-DR reference fields such as name, quote type, sector, industry, country, exchange, currency, market cap, historical coverage, and recent volume proxy:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\bootstrap_yahoo_reference_data.py
+.\.venv\Scripts\python.exe scripts\bootstrap_yahoo_reference_data.py --tickers SPY QQQ BTC-USD
+.\.venv\Scripts\python.exe scripts\bootstrap_yahoo_reference_data.py --output-dir data/reference/generated
+```
+
+The generated CSVs are written under `data/reference/generated/`, are ignored by git, and are marked `Source = Yahoo`, `VerificationStatus = NeedsReview`, and `IsYahooDerived = true`. They do not replace production reference CSVs automatically. Review details are in `docs/data/yahoo-metadata-bootstrap.md`.
+
 Local reference data can provide:
 
 - metadata
