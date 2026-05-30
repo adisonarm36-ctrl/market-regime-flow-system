@@ -4,6 +4,7 @@ from src.dashboard_components import (
     MetricCard,
     badge_list_markdown,
     badge_markdown,
+    build_table_index,
     callout_markdown,
     empty_state_markdown,
     metric_card_markdown,
@@ -13,6 +14,7 @@ from src.dashboard_components import (
     section_header_markdown,
     status_label,
     summarize_data_quality_status,
+    table_shape_text,
 )
 
 
@@ -94,6 +96,21 @@ def test_render_dataframe_uses_current_streamlit_width_api():
     render_dataframe(fake_st, table)
 
     assert fake_st.dataframe_calls == [(table, {"width": "stretch"})]
+
+
+def test_table_index_summarizes_non_empty_tables_without_rows():
+    tables = {
+        "available": pd.DataFrame({"Ticker": ["AAA", "BBB"], "Score": [1.0, 2.0]}),
+        "empty": pd.DataFrame(),
+        "not_a_table": "skip",
+    }
+
+    index = build_table_index(tables)
+
+    assert table_shape_text(tables["available"]) == "2 row(s), 2 column(s)"
+    assert index.to_dict("records") == [
+        {"table": "available", "rows": 2, "columns": 2, "status": "available"}
+    ]
 
 
 def test_safe_display_text_does_not_invent_missing_values():

@@ -19,7 +19,7 @@ from src.data_adapters import get_data_adapter
 from src.data_adapters.csv_adapter import CsvDataAdapter
 from src.data_adapters.yahoo_adapter import YahooDataAdapter
 from src.data_loader import pivot_prices, pivot_volume
-from src.dashboard_components import badge_list_markdown, render_dataframe, render_empty_state
+from src.dashboard_components import MetricCard, badge_list_markdown, build_table_index, render_dataframe, render_empty_state, render_metric_card, table_shape_text
 from src.report_generator import build_daily_report, build_narrative_report_sections, flatten_narrative_report_sections
 from src.startup_diagnostics import (
     StartupChecklistRow,
@@ -453,7 +453,33 @@ def _show_table(title: str, table: pd.DataFrame | None) -> None:
     if table is None or table.empty:
         render_empty_state(st, "No data available for this layer. Missing data is skipped.")
         return
+    st.caption(f"Evidence table: {table_shape_text(table)}. Values come from existing pipeline outputs.")
     render_dataframe(st, table)
+
+
+def _show_table_browser(title: str, tables: dict[str, pd.DataFrame | None]) -> None:
+    available = {
+        name: table
+        for name, table in tables.items()
+        if isinstance(table, pd.DataFrame) and not table.empty
+    }
+    st.markdown(f"### {title}")
+    if not available:
+        render_empty_state(st, "No non-empty tables are available in this group.")
+        return
+    index = build_table_index(available)
+    st.caption("Table index is shown first to avoid rendering every large table on each dashboard rerun.")
+    render_dataframe(st, index)
+    selected = st.selectbox(
+        f"Select table to inspect - {title}",
+        list(available.keys()),
+        key=f"table_browser_{_safe_widget_key(title)}",
+    )
+    _show_table(selected, available[selected])
+
+
+def _safe_widget_key(value: str) -> str:
+    return "".join(character.lower() if character.isalnum() else "_" for character in value).strip("_")
 
 
 def _show_daily_report_page(outputs: dict[str, pd.DataFrame]) -> None:
@@ -474,13 +500,7 @@ def _show_daily_report_page(outputs: dict[str, pd.DataFrame]) -> None:
             st.write(text)
 
     with st.expander("Raw data tables available for CSV export", expanded=False):
-        exported_any = False
-        for title, table in outputs.items():
-            if isinstance(table, pd.DataFrame) and not table.empty:
-                exported_any = True
-                _show_table(title, table)
-        if not exported_any:
-            render_empty_state(st, "No non-empty raw output tables are available for CSV export.")
+        _show_table_browser("Raw data tables available for CSV export", outputs)
 
     with st.expander("Supported export formats", expanded=True):
         format_rows = pd.DataFrame(
@@ -521,6 +541,7 @@ def build_today_decision_hub_tables(
     """Build presentation tables for the Today Decision Hub from existing outputs only."""
     return {
         "Market Regime": _build_market_regime_rows(outputs),
+        "Flow Signals": _build_flow_signal_rows(outputs),
         "Top Signals": _build_top_signal_rows(outputs.get("stock_ranking", pd.DataFrame())),
         "Risk Alerts": _build_risk_alert_rows(outputs),
         "Strategy Health": _build_strategy_health_rows(outputs),
@@ -541,53 +562,158 @@ def _show_today_decision_hub(
 
     left, right = st.columns(2)
     with left:
-        _show_hub_table(
+        _show_hub_card_section(
             "Market Regime",
             tables["Market Regime"],
             "Market regime not available. Needs price data and breadth inputs.",
         )
-        _show_hub_table(
+        _show_hub_card_section(
+            "Flow Signals",
+            tables["Flow Signals"],
+            "Global and asset-class flow signals are unavailable. Needs flow outputs and asset mapping.",
+        )
+        _show_hub_card_section(
             "Risk Alerts",
             tables["Risk Alerts"],
             "No warnings reported by current outputs.",
         )
-        _show_hub_table(
+        _show_hub_card_section(
             "Data Freshness",
             tables["Data Freshness"],
             "Freshness unavailable. Needs loaded price data or cache metadata.",
         )
     with right:
-        _show_hub_table(
+        _show_hub_card_section(
             "Top Signals",
             tables["Top Signals"],
             "No research candidates available. Needs metadata, momentum, and ranking outputs.",
         )
-        _show_hub_table(
+        _show_hub_card_section(
             "Strategy Health",
             tables["Strategy Health"],
             "Strategy health unavailable until pipeline outputs exist.",
         )
-        _show_hub_table(
+        _show_hub_card_section(
             "Quick Actions",
             tables["Quick Actions"],
             "Actions unavailable until data source is configured or uploaded.",
         )
 
     with st.expander("Raw supporting outputs", expanded=False):
-        _show_table("Global Flow Summary", outputs.get("global_flow_summary"))
-        _show_table("Country Breadth Summary", outputs.get("country_breadth_summary"))
-        _show_table("Thailand Market Health", outputs.get("thailand_market_health"))
-        _show_table("Sector Breadth Summary", outputs.get("sector_breadth_summary"))
-        _show_table("Ranked Research Candidates", outputs.get("stock_ranking"))
-        _show_table("Pipeline Warnings", outputs.get("warnings"))
+        _show_table_browser(
+            "Raw supporting outputs",
+            {
+                "Global Flow Summary": outputs.get("global_flow_summary"),
+                "Asset Class Flow": outputs.get("asset_class_flow_summary"),
+                "Country Breadth Summary": outputs.get("country_breadth_summary"),
+                "Thailand Market Health": outputs.get("thailand_market_health"),
+                "Sector Breadth Summary": outputs.get("sector_breadth_summary"),
+                "Ranked Research Candidates": outputs.get("stock_ranking"),
+                "Pipeline Warnings": outputs.get("warnings"),
+            },
+        )
 
 
-def _show_hub_table(title: str, table: pd.DataFrame, empty_message: str) -> None:
+def _show_hub_card_section(title: str, table: pd.DataFrame, empty_message: str) -> None:
     st.markdown(f"### {title}")
     if table.empty:
         render_empty_state(st, empty_message, action="Inspect source settings, warnings, or raw supporting outputs.")
         return
-    render_dataframe(st, table)
+    cards = build_decision_hub_card_rows(title, table)
+    if cards.empty:
+        render_empty_state(st, empty_message, action="Inspect source settings, warnings, or raw supporting outputs.")
+        return
+    for _, card in cards.iterrows():
+        with st.container(border=True):
+            render_metric_card(
+                st,
+                MetricCard(
+                    title=str(card["title"]),
+                    value=str(card["metric"]),
+                    status=str(card["status"]),
+                    detail=str(card["detail"]),
+                    caption=str(card["caption"]),
+                ),
+            )
+
+
+def build_decision_hub_card_rows(section: str, table: pd.DataFrame | None) -> pd.DataFrame:
+    """Build readable Decision Hub cards from existing presentation rows only."""
+    if table is None or table.empty:
+        return pd.DataFrame()
+    rows: list[dict[str, str]] = []
+    for _, row in table.iterrows():
+        if section == "Market Regime":
+            rows.append(
+                {
+                    "title": _safe_row_text(row, "section"),
+                    "metric": _safe_row_text(row, "metric"),
+                    "status": _hub_status_from_signal(_safe_row_text(row, "signal")),
+                    "detail": f"{_safe_row_text(row, 'signal')} - {_safe_row_text(row, 'detail')}",
+                    "caption": f"Source: {_safe_row_text(row, 'source')}",
+                }
+            )
+        elif section == "Flow Signals":
+            rows.append(
+                {
+                    "title": _safe_row_text(row, "label"),
+                    "metric": _safe_row_text(row, "metric"),
+                    "status": "info",
+                    "detail": f"{_safe_row_text(row, 'signal')} - {_safe_row_text(row, 'detail')}",
+                    "caption": f"Source: {_safe_row_text(row, 'source')}",
+                }
+            )
+        elif section == "Top Signals":
+            rows.append(
+                {
+                    "title": _safe_row_text(row, "Ticker"),
+                    "metric": _safe_row_text(row, "research_score"),
+                    "status": "warning" if _safe_row_text(row, "warnings") != "None reported" else "info",
+                    "detail": f"{_safe_row_text(row, 'signal_type')} - {_safe_row_text(row, 'reason')}",
+                    "caption": f"{_safe_row_text(row, 'country')} / {_safe_row_text(row, 'sector')} / warnings: {_safe_row_text(row, 'warnings')}",
+                }
+            )
+        elif section == "Risk Alerts":
+            rows.append(
+                {
+                    "title": _safe_row_text(row, "category"),
+                    "metric": _safe_row_text(row, "status"),
+                    "status": _safe_row_text(row, "status"),
+                    "detail": _safe_row_text(row, "detail"),
+                    "caption": "Warning rows remain available in raw supporting outputs.",
+                }
+            )
+        elif section == "Strategy Health":
+            rows.append(
+                {
+                    "title": _safe_row_text(row, "layer"),
+                    "metric": f"{_safe_row_text(row, 'rows')} row(s)",
+                    "status": _safe_row_text(row, "status"),
+                    "detail": f"Layer status: {_safe_row_text(row, 'status')}",
+                    "caption": f"Source: {_safe_row_text(row, 'source')}",
+                }
+            )
+        elif section == "Data Freshness":
+            rows.append(
+                {
+                    "title": _safe_row_text(row, "item"),
+                    "metric": _safe_row_text(row, "status"),
+                    "status": _safe_row_text(row, "status"),
+                    "detail": _safe_row_text(row, "detail"),
+                    "caption": "Yahoo remains historical/cache-based only.",
+                }
+            )
+        elif section == "Quick Actions":
+            rows.append(
+                {
+                    "title": _safe_row_text(row, "action"),
+                    "metric": _safe_row_text(row, "status"),
+                    "status": _safe_row_text(row, "status"),
+                    "detail": _safe_row_text(row, "detail"),
+                    "caption": f"Target page: {_safe_row_text(row, 'target')}",
+                }
+            )
+    return pd.DataFrame(rows)
 
 
 def _build_market_regime_rows(outputs: dict[str, pd.DataFrame]) -> pd.DataFrame:
@@ -638,6 +764,34 @@ def _build_market_regime_rows(outputs: dict[str, pd.DataFrame]) -> pd.DataFrame:
                 "metric": _safe_numeric_text(row, "breadth_score"),
                 "detail": f"{_safe_row_text(row, 'Sector')} breadth_score",
                 "source": "sector_breadth_summary",
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _build_flow_signal_rows(outputs: dict[str, pd.DataFrame], limit: int = 3) -> pd.DataFrame:
+    rows: list[dict[str, object]] = []
+    global_flow = _sort_by_existing_score(outputs.get("global_flow_summary"), "flow_score").head(limit)
+    for _, row in global_flow.iterrows():
+        rows.append(
+            {
+                "label": _safe_row_text(row, "Ticker"),
+                "signal": _safe_row_text(row, "flow_classification", fallback="flow signal"),
+                "metric": _safe_numeric_text(row, "flow_score"),
+                "detail": "Ticker-level flow signal proxy",
+                "source": "global_flow_summary",
+            }
+        )
+    asset_flow = _sort_by_existing_score(outputs.get("asset_class_flow_summary"), "flow_score").head(limit)
+    for _, row in asset_flow.iterrows():
+        label = _first_available_row_text(row, ["asset_class", "group", "subgroup"], fallback="Asset class")
+        rows.append(
+            {
+                "label": label,
+                "signal": "Asset-class flow signal proxy",
+                "metric": _safe_numeric_text(row, "flow_score"),
+                "detail": f"{_safe_row_text(row, 'instrument_count')} instrument(s)",
+                "source": "asset_class_flow_summary",
             }
         )
     return pd.DataFrame(rows)
@@ -798,6 +952,23 @@ def _safe_numeric_text(row: pd.Series, column: str, fallback: str = "Not availab
     if pd.isna(value):
         return fallback
     return f"{float(value):.2f}"
+
+
+def _first_available_row_text(row: pd.Series, columns: list[str], fallback: str = "Not available") -> str:
+    for column in columns:
+        value = _safe_row_text(row, column, fallback="")
+        if value:
+            return value
+    return fallback
+
+
+def _hub_status_from_signal(signal: str) -> str:
+    text = signal.lower()
+    if "bear" in text or "warning" in text or "missing" in text or "skipped" in text:
+        return "warning"
+    if "bull" in text or "strong" in text or "available" in text:
+        return "available"
+    return "info"
 
 
 def _combine_row_warnings(row: pd.Series, columns: list[str]) -> str:
