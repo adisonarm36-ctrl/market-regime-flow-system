@@ -773,3 +773,97 @@ def test_signal_detail_sections_preserve_dr_boundary_and_missing_metadata():
     assert quality.loc[quality["item"].eq("Industry metadata"), "value"].iloc[0] == "Needs data source"
     supporting = sections["Supporting Row"]
     assert "DR1" in supporting["value"].tolist()
+
+
+def test_universe_has_dr_tickers_check():
+    from src.dashboard import universe_has_dr_tickers
+    
+    # 1. No DR tickers
+    outputs_no_dr = {
+        "stock_ranking": pd.DataFrame({
+            "Ticker": ["AAA", "BBB"],
+            "SecurityType": ["Stock", "Stock"]
+        })
+    }
+    assert universe_has_dr_tickers(outputs_no_dr) is False
+    
+    # 2. Has DR tickers in stock_ranking
+    outputs_has_dr = {
+        "stock_ranking": pd.DataFrame({
+            "Ticker": ["AAA", "BBB", "DR1"],
+            "SecurityType": ["Stock", "Stock", "DR"]
+        })
+    }
+    assert universe_has_dr_tickers(outputs_has_dr) is True
+    
+    # 3. Has DR tickers in dr_quality_ranking matched to stock_ranking
+    outputs_mapped_dr = {
+        "stock_ranking": pd.DataFrame({
+            "Ticker": ["AAA", "BBB", "DR1"],
+            "SecurityType": ["Stock", "Stock", "Stock"]
+        }),
+        "dr_quality_ranking": pd.DataFrame({
+            "DR_Ticker": ["DR1"]
+        })
+    }
+    assert universe_has_dr_tickers(outputs_mapped_dr) is True
+
+
+def test_dr_optional_warnings_filtering():
+    from src.dashboard import _build_risk_alert_rows, _is_dr_related_warning
+    
+    # DR warning detection helper
+    assert _is_dr_related_warning("dr_mapping missing optional data") is True
+    assert _is_dr_related_warning("fx_rates missing optional data") is True
+    assert _is_dr_related_warning("metadata_path missing") is False
+    
+    outputs_no_dr = {
+        "stock_ranking": pd.DataFrame({
+            "Ticker": ["AAA", "BBB"],
+            "SecurityType": ["Stock", "Stock"]
+        }),
+        "warnings": pd.DataFrame({
+            "warning": [
+                "metadata_path missing",
+                "dr_mapping_path missing"
+            ]
+        }),
+        "dr_quality_warnings": pd.DataFrame({
+            "warning": ["DR1 warning"]
+        })
+    }
+    
+    risk_alerts = _build_risk_alert_rows(outputs_no_dr)
+    
+    details = risk_alerts["detail"].tolist()
+    assert "metadata_path missing" in details
+    assert not any("dr_" in d or "DR" in d for d in details)
+
+
+def test_backtest_disabled_informational_copy():
+    from src.dashboard import _show_backtest_page
+    
+    class FakeStreamlit:
+        def __init__(self):
+            self.info_calls = []
+            self.subheader_calls = []
+            
+        def subheader(self, text):
+            self.subheader_calls.append(text)
+            
+        def info(self, text):
+            self.info_calls.append(text)
+            
+    fake_st = FakeStreamlit()
+    
+    import src.dashboard
+    old_st = src.dashboard.st
+    src.dashboard.st = fake_st
+    try:
+        _show_backtest_page({}, backtest_enabled=False)
+    finally:
+        src.dashboard.st = old_st
+        
+    assert "Backtest Evidence" in fake_st.subheader_calls
+    assert any("Backtest assumptions are disabled" in text for text in fake_st.info_calls)
+

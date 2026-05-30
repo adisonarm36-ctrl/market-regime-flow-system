@@ -186,19 +186,19 @@ def main() -> None:
         yahoo_universe_source = "Configured Yahoo tickers"
         selected_thailand_universe = "SET ex-DR"
 
+    production_readiness_rows = None
+    startup_rows = None
+    yahoo_dependency = None
+    dashboard_cache_status = None
+    demo_reference_warnings = []
+    adapter = None
+
     if data_mode == CONFIG_SOURCE_MODE:
         if config is None:
             st.error("Could not load config/data_sources.yaml. Use Advanced / fallback manual upload if needed.")
             return
         runtime_config, demo_reference_warnings = apply_demo_reference_runtime_config(config, use_demo_reference_data)
-        dashboard_cache_status: dict[str, object] | None = None
-        if use_demo_reference_data:
-            st.success("Demo mode is enabled for smoke testing. Not production-ready.")
-            st.caption("Bundled reference files are fake/sample-only; replace them with verified local files before research use.")
-        for warning in demo_reference_warnings:
-            st.caption(warning)
         production_readiness_rows = build_production_reference_readiness(config)
-        _show_production_reference_readiness(production_readiness_rows, demo_reference_enabled=use_demo_reference_data)
         adapter = _safe_get_data_adapter(runtime_config)
         adapter_error = None
         if isinstance(adapter, Exception):
@@ -263,11 +263,10 @@ def main() -> None:
                 manual_upload_available=True,
                 adapter_error=adapter_error,
             )
-            _show_startup_checklist(startup_rows)
-            _show_yahoo_startup_state(startup_rows, use_demo_reference_data)
-            _show_yahoo_smoke_test_control(pipeline_config=disable_yahoo_force_refresh(runtime_config), startup_rows=startup_rows)
             if startup_checklist_has_blockers(startup_rows):
                 st.error("Blocked: selected Yahoo runtime configuration cannot run. Resolve the hard blocker or use Advanced / fallback manual upload.")
+                _show_startup_checklist(startup_rows, demo_reference_enabled=use_demo_reference_data, force_expanded=True)
+                _show_yahoo_startup_state(startup_rows, use_demo_reference_data)
                 return
         elif runtime_config.get("active_source") == "yahoo":
             yahoo_dependency = yahoo_dependency_diagnostic()
@@ -278,9 +277,9 @@ def main() -> None:
                 manual_upload_available=True,
                 adapter_error=adapter_error,
             )
-            _show_startup_checklist(startup_rows)
-            _show_yahoo_startup_state(startup_rows, use_demo_reference_data)
             st.error("Blocked: selected Yahoo runtime configuration cannot run. Resolve the hard blocker or use Advanced / fallback manual upload.")
+            _show_startup_checklist(startup_rows, demo_reference_enabled=use_demo_reference_data, force_expanded=True)
+            _show_yahoo_startup_state(startup_rows, use_demo_reference_data)
             return
         else:
             yahoo_refresh_requested = False
@@ -350,8 +349,6 @@ def main() -> None:
         else:
             pipeline_config = runtime_config
         outputs = _run_config_pipeline_once(pipeline_config, enable_backtest, backtest_config, False, yahoo_cache_marker)
-        _show_demo_run_summary(outputs, use_demo_reference_data, production_readiness_rows)
-        _show_status_tables(outputs)
     else:
         outputs = run_topdown_pipeline(
             price_df=price_df,
@@ -390,6 +387,10 @@ def main() -> None:
             source_label=active_source_label(config) if data_mode == CONFIG_SOURCE_MODE else "active_source: manual upload",
             demo_reference_enabled=bool(use_demo_reference_data),
             cache_status=dashboard_cache_status if data_mode == CONFIG_SOURCE_MODE else None,
+            production_readiness_rows=production_readiness_rows,
+            startup_rows=startup_rows,
+            pipeline_config=disable_yahoo_force_refresh(runtime_config) if data_mode == CONFIG_SOURCE_MODE and isinstance(adapter, YahooDataAdapter) else None,
+            demo_reference_warnings=demo_reference_warnings,
         )
     elif page == "Global Flow Map":
         _show_table("Global Flow Summary", outputs.get("global_flow_summary"))
@@ -443,7 +444,7 @@ def main() -> None:
     elif page == "Redundancy Report":
         _show_table("Redundant Instruments", outputs.get("redundancy_report"))
     elif page == "Backtest":
-        _show_backtest_page(outputs)
+        _show_backtest_page(outputs, backtest_enabled=enable_backtest)
     elif page == "Daily Report":
         _show_daily_report_page(outputs)
 
@@ -550,14 +551,60 @@ def build_today_decision_hub_tables(
     }
 
 
+def universe_has_dr_tickers(outputs: dict[str, pd.DataFrame]) -> bool:
+    """Return True if the selected universe/candidates contains any DR/DRx tickers."""
+    stock_ranking = outputs.get("stock_ranking")
+    if stock_ranking is not None and not stock_ranking.empty:
+        if "SecurityType" in stock_ranking.columns:
+            if stock_ranking["SecurityType"].isin(["DR", "DRx"]).any():
+                return True
+        dr_rank = outputs.get("dr_quality_ranking")
+        if dr_rank is not None and not dr_rank.empty and "DR_Ticker" in dr_rank.columns:
+            if stock_ranking["Ticker"].isin(dr_rank["DR_Ticker"]).any():
+                return True
+    return False
+
+
+def _is_dr_related_warning(warning_text: str) -> bool:
+    """Return True if a warning is related to optional DR schema/files."""
+    lowered = warning_text.lower()
+    dr_keys = [
+        "dr_", "dr mapping", "dr price", "dr volume", "dr market data",
+        "dr bid ask", "dr fair value", "dr tracking", "fx_rates",
+        "underlying_prices", "duplicate dr", "dr/drx"
+    ]
+    return any(key in lowered for key in dr_keys)
+
+
 def _show_today_decision_hub(
     outputs: dict[str, pd.DataFrame],
     source_label: str = "",
     demo_reference_enabled: bool = False,
     cache_status: dict[str, object] | None = None,
+    production_readiness_rows: list | None = None,
+    startup_rows: list | None = None,
+    pipeline_config: dict | None = None,
+    demo_reference_warnings: list[str] | None = None,
 ) -> None:
     st.subheader("Today Decision Hub")
     st.caption("Research signals only. This page summarizes existing outputs and does not change calculations.")
+    
+    # E. Print/PDF note
+    st.caption("ℹ️ Browser print is not the main report view. Use the 'Daily Report' page to preview and export narrative HTML/CSV reports.")
+
+    # A. Demo / production status badge banner
+    if demo_reference_enabled:
+        st.warning("⚠️ DEMO MODE: Using bundled fake/demo reference files. Not suitable for production research.")
+        if demo_reference_warnings:
+            for warning in demo_reference_warnings:
+                st.caption(warning)
+    else:
+        st.success("🔒 PRODUCTION MODE: Active data sources and production reference paths are configured.")
+
+    # C. Skip DR message if no DR tickers exist
+    if not universe_has_dr_tickers(outputs):
+        st.info("Optional DR layers are skipped because no DR/DRx tickers are in the selected universe.")
+
     tables = build_today_decision_hub_tables(outputs, source_label, demo_reference_enabled, cache_status)
 
     left, right = st.columns(2)
@@ -598,6 +645,22 @@ def _show_today_decision_hub(
             tables["Quick Actions"],
             "Actions unavailable until data source is configured or uploaded.",
         )
+
+    # A & B. Collapsed diagnostics below the hub cards
+    st.markdown("---")
+    st.markdown("### System Diagnostics & Reference Status")
+
+    if production_readiness_rows:
+        _show_production_reference_readiness(production_readiness_rows, demo_reference_enabled=demo_reference_enabled)
+
+    if startup_rows:
+        _show_startup_checklist(startup_rows, demo_reference_enabled=demo_reference_enabled)
+
+    if pipeline_config is not None and startup_rows:
+        _show_yahoo_smoke_test_control(pipeline_config=pipeline_config, startup_rows=startup_rows)
+
+    _show_demo_run_summary(outputs, demo_reference_enabled, production_readiness_rows or [])
+    _show_status_tables(outputs)
 
     with st.expander("Raw supporting outputs", expanded=False):
         _show_table_browser(
@@ -818,18 +881,23 @@ def _build_top_signal_rows(stock_ranking: pd.DataFrame | None, limit: int = 5) -
 
 
 def _build_risk_alert_rows(outputs: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    has_dr = universe_has_dr_tickers(outputs)
     sources = [
         ("Pipeline", outputs.get("warnings"), "warning"),
         ("Backtest", outputs.get("backtest_warnings"), "warning"),
-        ("DR quality", outputs.get("dr_quality_warnings"), "warning"),
     ]
+    if has_dr:
+        sources.append(("DR quality", outputs.get("dr_quality_warnings"), "warning"))
     rows: list[dict[str, object]] = []
     for category, table, column in sources:
         if not isinstance(table, pd.DataFrame) or table.empty or column not in table.columns:
             continue
-        for value in table[column].dropna().astype(str).head(5):
+        for value in table[column].dropna().astype(str):
+            if not has_dr and _is_dr_related_warning(value):
+                continue
             rows.append({"category": category, "status": "warning", "detail": value})
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows).head(5)
+
 
 
 def _build_strategy_health_rows(outputs: dict[str, pd.DataFrame]) -> pd.DataFrame:
@@ -1338,21 +1406,29 @@ def _supporting_row_table(row: pd.Series) -> pd.DataFrame:
     return pd.DataFrame(items)
 
 
-def _show_startup_checklist(rows: list[StartupChecklistRow]) -> None:
-    st.subheader("Yahoo Startup Checklist")
+def _show_startup_checklist(
+    rows: list[StartupChecklistRow],
+    demo_reference_enabled: bool = False,
+    force_expanded: bool = False,
+) -> None:
     if not rows:
         st.info("No startup checklist rows available.")
         return
     table = pd.DataFrame([row.__dict__ for row in rows])
     blocker_count = int(table["status"].eq("blocker").sum())
     warning_count = int(table["status"].eq("warning").sum())
-    if blocker_count:
-        st.error(f"{blocker_count} startup blocker(s) found. Details are available below.")
-    elif warning_count:
-        st.warning(f"{warning_count} startup warning(s) found. Details are available below.")
-    else:
-        st.success("No startup blockers detected.")
-    with st.expander("Startup checklist details", expanded=bool(blocker_count)):
+    
+    is_demo_ready = demo_reference_enabled or blocker_count == 0
+    expanded = force_expanded or (not is_demo_ready)
+    
+    with st.expander("Yahoo Startup Checklist", expanded=expanded):
+        st.subheader("Yahoo Startup Checklist")
+        if blocker_count:
+            st.error(f"{blocker_count} startup blocker(s) found. Details are available below.")
+        elif warning_count:
+            st.warning(f"{warning_count} startup warning(s) found. Details are available below.")
+        else:
+            st.success("No startup blockers detected.")
         render_dataframe(st, table)
         for row in rows:
             message = f"{row.item}: {row.detail}"
@@ -1378,17 +1454,18 @@ def _show_yahoo_startup_state(rows: list[StartupChecklistRow], demo_reference_en
 
 
 def _show_yahoo_smoke_test_control(pipeline_config: dict, startup_rows: list[StartupChecklistRow]) -> None:
-    st.subheader("Yahoo Historical Smoke Test")
-    st.info("Historical Yahoo OHLCV smoke test only. Not realtime, not data completeness validation, and not investment advice.")
-    hard_blockers = {"Configured Yahoo tickers", "yfinance availability", "Yahoo adapter config", "Yahoo data loading", "Yahoo cache directory"}
-    smoke_blockers = [row for row in startup_rows if row.status == "blocker" and row.item in hard_blockers]
-    if smoke_blockers:
-        for row in smoke_blockers:
-            st.warning(f"Smoke test blocked: {row.item}. {row.next_step or row.detail}")
-        return
-    if st.button("Run Yahoo historical smoke test"):
-        result = _run_yahoo_smoke_test_once(pipeline_config, _smoke_test_cache_token(pipeline_config))
-        _show_yahoo_smoke_test_result(result)
+    with st.expander("Yahoo Historical Smoke Test Control", expanded=False):
+        st.subheader("Yahoo Historical Smoke Test")
+        st.info("Historical Yahoo OHLCV smoke test only. Not realtime, not data completeness validation, and not investment advice.")
+        hard_blockers = {"Configured Yahoo tickers", "yfinance availability", "Yahoo adapter config", "Yahoo data loading", "Yahoo cache directory"}
+        smoke_blockers = [row for row in startup_rows if row.status == "blocker" and row.item in hard_blockers]
+        if smoke_blockers:
+            for row in smoke_blockers:
+                st.warning(f"Smoke test blocked: {row.item}. {row.next_step or row.detail}")
+            return
+        if st.button("Run Yahoo historical smoke test"):
+            result = _run_yahoo_smoke_test_once(pipeline_config, _smoke_test_cache_token(pipeline_config))
+            _show_yahoo_smoke_test_result(result)
 
 
 def _show_yahoo_smoke_test_result(result: YahooSmokeTestResult) -> None:
@@ -1418,26 +1495,26 @@ def _show_yahoo_smoke_test_result(result: YahooSmokeTestResult) -> None:
 
 
 def _show_production_reference_readiness(rows: list[ProductionReferenceReadinessRow], demo_reference_enabled: bool = False) -> None:
-    st.subheader("Production Reference Readiness")
-    if not rows:
-        st.info("No production reference readiness rows available.")
-        return
-    table = pd.DataFrame([row.__dict__ for row in rows])
-    missing_count = sum(row.status == "missing" for row in rows)
-    invalid_count = sum(row.status == "invalid" for row in rows)
-    sample_count = sum(row.status == "sample" for row in rows)
-    if demo_reference_enabled and (missing_count or invalid_count):
-        st.warning(
-            f"{missing_count + invalid_count} production reference issue(s) found. "
-            "Demo mode is being used for smoke testing."
-        )
-    elif missing_count or invalid_count:
-        st.warning(f"{missing_count + invalid_count} production reference issue(s) found.")
-    elif sample_count:
-        st.warning(f"{sample_count} fake/sample production reference file(s) configured.")
-    else:
-        st.success("Configured production reference files have required readiness checks.")
-    with st.expander("Production readiness warnings", expanded=False):
+    with st.expander("Production Reference Readiness Checks", expanded=False):
+        st.subheader("Production Reference Readiness")
+        if not rows:
+            st.info("No production reference readiness rows available.")
+            return
+        table = pd.DataFrame([row.__dict__ for row in rows])
+        missing_count = sum(row.status == "missing" for row in rows)
+        invalid_count = sum(row.status == "invalid" for row in rows)
+        sample_count = sum(row.status == "sample" for row in rows)
+        if demo_reference_enabled and (missing_count or invalid_count):
+            st.warning(
+                f"{missing_count + invalid_count} production reference issue(s) found. "
+                "Demo mode is being used for smoke testing."
+            )
+        elif missing_count or invalid_count:
+            st.warning(f"{missing_count + invalid_count} production reference issue(s) found.")
+        elif sample_count:
+            st.warning(f"{sample_count} fake/sample production reference file(s) configured.")
+        else:
+            st.success("Configured production reference files have required readiness checks.")
         render_dataframe(st, table)
         for row in rows:
             if row.status in {"missing", "invalid"}:
@@ -1600,9 +1677,14 @@ def _backtest_portfolio_date_range(backtest_portfolio: pd.DataFrame) -> tuple[st
     return str(dates.min().date()), str(dates.max().date())
 
 
-def _show_backtest_page(outputs: dict[str, pd.DataFrame]) -> None:
+def _show_backtest_page(outputs: dict[str, pd.DataFrame], backtest_enabled: bool = False) -> None:
     st.subheader("Backtest Evidence")
     st.info("Backtest outputs are historical research assumptions only. They are not financial advice, trading advice, or future-return guarantees.")
+    
+    if not backtest_enabled:
+        st.info("Backtest assumptions are disabled. Enable them in the sidebar to view backtest evidence.")
+        return
+        
     evidence_tables = build_backtest_evidence_tables(outputs)
     raw_tables = build_backtest_dashboard_tables(outputs)
     if not raw_tables:
@@ -1629,9 +1711,9 @@ def _sidebar_backtest_config(enabled: bool) -> BacktestConfig | None:
 
 
 def _show_status_tables(outputs: dict[str, pd.DataFrame]) -> None:
-    st.subheader("Data Source Status")
-    st.caption("Detailed source, reference, and optional-layer diagnostics are grouped below.")
-    with st.expander("Data source and reference diagnostics", expanded=False):
+    with st.expander("Data Source Status & Diagnostics", expanded=False):
+        st.subheader("Data Source Status")
+        st.caption("Detailed source, reference, and optional-layer diagnostics are grouped below.")
         _show_table_browser(
             "Data source and reference diagnostics",
             {
@@ -1646,9 +1728,9 @@ def _show_status_tables(outputs: dict[str, pd.DataFrame]) -> None:
                 "Pipeline Layer Status": outputs.get("pipeline_layer_status"),
             },
         )
-    warnings = outputs.get("warnings")
-    if warnings is not None and not warnings.empty:
-        _show_pipeline_warnings(warnings["warning"].dropna().astype(str).tolist())
+        warnings = outputs.get("warnings")
+        if warnings is not None and not warnings.empty:
+            _show_pipeline_warnings(warnings["warning"].dropna().astype(str).tolist())
 
 
 def build_demo_run_summary(
@@ -1686,13 +1768,14 @@ def _show_demo_run_summary(
     demo_reference_enabled: bool,
     production_readiness_rows: list[ProductionReferenceReadinessRow],
 ) -> None:
-    st.subheader("Demo Run Summary")
-    if demo_reference_enabled:
-        st.success("Demo mode is enabled for smoke testing. Not production-ready.")
-    else:
-        st.info("Production reference mode is selected. Missing local references may limit outputs.")
-    render_dataframe(st, build_demo_run_summary(outputs, demo_reference_enabled, production_readiness_rows))
-    st.caption("Browser print/PDF mirrors the interactive dashboard. Use the Daily Report page and existing CSV/HTML export helpers for report outputs.")
+    with st.expander("Demo / Production Run Summary", expanded=False):
+        st.subheader("Demo Run Summary")
+        if demo_reference_enabled:
+            st.success("Demo mode is enabled for smoke testing. Not production-ready.")
+        else:
+            st.info("Production reference mode is selected. Missing local references may limit outputs.")
+        render_dataframe(st, build_demo_run_summary(outputs, demo_reference_enabled, production_readiness_rows))
+        st.caption("Browser print/PDF mirrors the interactive dashboard. Use the Daily Report page and existing CSV/HTML export helpers for report outputs.")
 
 
 def summarize_dashboard_warnings(warnings: list[str]) -> dict[str, list[str]]:
