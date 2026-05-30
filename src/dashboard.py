@@ -1225,14 +1225,164 @@ def build_backtest_dashboard_tables(outputs: dict[str, pd.DataFrame]) -> dict[st
     return {name: table for name, table in tables.items() if isinstance(table, pd.DataFrame) and not table.empty}
 
 
+def build_backtest_evidence_tables(outputs: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
+    """Build presentation-only backtest evidence tables from existing outputs."""
+    summary = outputs.get("backtest_summary", pd.DataFrame())
+    warnings = outputs.get("backtest_warnings", pd.DataFrame())
+    portfolio = outputs.get("backtest_portfolio", pd.DataFrame())
+    tables = {
+        "Backtest Metric Guide": _build_backtest_metric_guide(summary),
+        "Backtest Evidence Limits": _build_backtest_limit_rows(summary, warnings, portfolio),
+    }
+    return {name: table for name, table in tables.items() if isinstance(table, pd.DataFrame) and not table.empty}
+
+
+def _build_backtest_metric_guide(backtest_summary: pd.DataFrame | None) -> pd.DataFrame:
+    if backtest_summary is None or backtest_summary.empty:
+        return pd.DataFrame()
+    row = backtest_summary.iloc[0]
+    metric_definitions = [
+        (
+            "total_return",
+            "Total historical return",
+            "Cumulative return over the aligned backtest window.",
+        ),
+        (
+            "annualized_volatility",
+            "Annualized historical volatility",
+            "Realized volatility from the historical backtest returns.",
+        ),
+        (
+            "max_drawdown",
+            "Maximum historical drawdown",
+            "Largest peak-to-trough decline observed in the backtest path.",
+        ),
+        (
+            "hit_rate",
+            "Historical hit rate",
+            "Share of aligned return observations with positive portfolio return.",
+        ),
+        (
+            "turnover",
+            "Historical turnover",
+            "Average position change from the existing backtest output.",
+        ),
+        (
+            "average_gross_exposure",
+            "Average gross exposure",
+            "Average absolute exposure used by the historical research assumptions.",
+        ),
+        (
+            "observations",
+            "Aligned observations",
+            "Number of aligned return observations available for this backtest.",
+        ),
+        (
+            "signal_type",
+            "Signal label",
+            "Existing label that keeps the output framed as research signals only.",
+        ),
+    ]
+    rows = []
+    for field, label, explanation in metric_definitions:
+        if field not in row.index:
+            continue
+        rows.append(
+            {
+                "metric": label,
+                "value": _safe_numeric_text(row, field) if field != "signal_type" else _safe_row_text(row, field),
+                "source_field": field,
+                "meaning": explanation,
+                "interpretation_limit": "Historical research assumption only; not financial advice or a future-performance guarantee.",
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _build_backtest_limit_rows(
+    backtest_summary: pd.DataFrame | None,
+    backtest_warnings: pd.DataFrame | None,
+    backtest_portfolio: pd.DataFrame | None,
+) -> pd.DataFrame:
+    rows: list[dict[str, str]] = [
+        {
+            "item": "Research-assumption label",
+            "status": "required",
+            "detail": "Backtest outputs are historical research assumptions only.",
+            "source": "dashboard",
+        },
+        {
+            "item": "No-advice boundary",
+            "status": "required",
+            "detail": "Do not interpret these values as trading advice, financial advice, or future-return guarantees.",
+            "source": "dashboard",
+        },
+    ]
+    if isinstance(backtest_summary, pd.DataFrame) and not backtest_summary.empty:
+        row = backtest_summary.iloc[0]
+        observations = _safe_numeric_text(row, "observations")
+        if observations != "Not available":
+            rows.append(
+                {
+                    "item": "Sample-size context",
+                    "status": "review",
+                    "detail": f"{observations} aligned return observation(s) are available.",
+                    "source": "backtest_summary.observations",
+                }
+            )
+    if isinstance(backtest_warnings, pd.DataFrame) and not backtest_warnings.empty:
+        warning_column = "warning" if "warning" in backtest_warnings.columns else backtest_warnings.columns[0]
+        for warning in backtest_warnings[warning_column].dropna().astype(str):
+            rows.append(
+                {
+                    "item": "Coverage warning",
+                    "status": "warning",
+                    "detail": warning,
+                    "source": f"backtest_warnings.{warning_column}",
+                }
+            )
+    if isinstance(backtest_portfolio, pd.DataFrame) and not backtest_portfolio.empty:
+        start, end = _backtest_portfolio_date_range(backtest_portfolio)
+        if start or end:
+            rows.append(
+                {
+                    "item": "Date range",
+                    "status": "available",
+                    "detail": f"{start or 'Not available'} to {end or 'Not available'}",
+                    "source": "backtest_portfolio",
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def _backtest_portfolio_date_range(backtest_portfolio: pd.DataFrame) -> tuple[str, str]:
+    if "Date" in backtest_portfolio.columns:
+        dates = pd.to_datetime(backtest_portfolio["Date"], errors="coerce").dropna()
+    elif isinstance(backtest_portfolio.index, pd.DatetimeIndex):
+        dates = pd.Series(backtest_portfolio.index)
+    else:
+        return "", ""
+    if dates.empty:
+        return "", ""
+    return str(dates.min().date()), str(dates.max().date())
+
+
 def _show_backtest_page(outputs: dict[str, pd.DataFrame]) -> None:
-    st.info("Backtest outputs are research assumptions only. They are not financial advice, trading advice, or future-return guarantees.")
-    tables = build_backtest_dashboard_tables(outputs)
-    if not tables:
-        st.warning("No backtest data available. Enable research backtest assumptions and provide aligned price/signal data.")
+    st.subheader("Backtest Evidence")
+    st.info("Backtest outputs are historical research assumptions only. They are not financial advice, trading advice, or future-return guarantees.")
+    evidence_tables = build_backtest_evidence_tables(outputs)
+    raw_tables = build_backtest_dashboard_tables(outputs)
+    if not raw_tables:
+        render_empty_state(st, "No backtest data available. Enable research backtest assumptions and provide aligned price/signal data.")
         return
-    for title, table in tables.items():
-        _show_table(title, table)
+    if not evidence_tables:
+        render_empty_state(st, "Backtest summary metrics are unavailable.", action="Inspect raw backtest outputs and coverage warnings.")
+    else:
+        for title, table in evidence_tables.items():
+            _show_table(title, table)
+    with st.expander("Raw backtest outputs", expanded=False):
+        for title, table in raw_tables.items():
+            _show_table(title, table)
 
 
 def _sidebar_backtest_config(enabled: bool) -> BacktestConfig | None:
