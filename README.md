@@ -358,6 +358,15 @@ Phase 8A adds an optional Yahoo metadata bootstrap for review candidates. It can
 
 The generated CSVs are written under `data/reference/generated/`, are ignored by git, and are marked `Source = Yahoo`, `VerificationStatus = NeedsReview`, and `IsYahooDerived = true`. They do not replace production reference CSVs automatically. Review details are in `docs/data/yahoo-metadata-bootstrap.md`.
 
+After manually reviewing candidates, use the dry-run-first promotion workflow:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\promote_yahoo_candidates.py
+.\.venv\Scripts\python.exe scripts\promote_yahoo_candidates.py --apply
+```
+
+Promotion only accepts rows marked `Reviewed` or `Approved`, backs up existing production CSVs before overwrite, and keeps Yahoo provenance columns. See `docs/data/yahoo-candidate-promotion.md`.
+
 Local reference data can provide:
 
 - metadata

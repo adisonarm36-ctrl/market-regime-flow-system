@@ -16,6 +16,7 @@
 - Phase 7E completed: production reference readiness checks for required local files, columns, sample-file warnings, and Yahoo ticker fields.
 - Phase 7F completed: first-run usability documentation finalization and regression test confirmation.
 - Phase 8A completed: Yahoo metadata bootstrap workflow for generated, NeedsReview reference candidates without replacing production CSVs.
+- Phase 8B completed: dry-run-first promotion workflow for manually Reviewed/Approved Yahoo candidate rows with backup-before-overwrite behavior.
 - Current test result: 131 passed, 1 pytest cache warning on 2026-05-27 with Python 3.14.2.
 - CSV remains supported and is still the default fallback/source.
 - Yahoo historical adapter works with cache-first mode and explicit user-controlled refresh.
@@ -72,6 +73,7 @@
 - Dashboard and report export for backtest results are available for existing backtest outputs, but real production use requires verified source data and review of assumptions.
 - Yahoo-first workflow is complete through documentation/tests, but Yahoo coverage can still be partial or unavailable.
 - Yahoo-derived metadata candidates can help prefill review files, but every generated row still requires manual verification before production use.
+- Reviewed Yahoo candidates can be promoted with a user-run script, but NeedsReview rows are blocked and DR/DRx data remains user-provided.
 
 ## Next Phase
 
