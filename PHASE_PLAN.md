@@ -1,8 +1,8 @@
 # Phase Plan
 
-Current implementation focus: no active first-run usability phase.
+Current implementation focus: Phase 8A.1 Yahoo candidate map generation fix.
 
-The Yahoo-first transition is complete through Phase 6F. Phase 7A through 7F first-run usability work is complete. Phase 8A adds a Yahoo metadata bootstrap that writes generated NeedsReview candidate files without replacing production references. Phase 8B adds a dry-run-first promotion workflow for manually Reviewed/Approved Yahoo candidate rows with backups before production CSV overwrite. The system supports configured CSV/manual data, optional Yahoo historical OHLCV loading, local reference-driven metadata/universe/mapping workflows, explicit Yahoo cache controls, opt-in research backtests from configured historical prices, missing-yfinance diagnostics, explicit runtime demo reference bootstrap mode, a Yahoo startup checklist before configured loading, an explicit Yahoo historical smoke test, production reference readiness checks, and finalized first-run documentation.
+The Yahoo-first transition is complete through Phase 6F. Phase 7A through 7F first-run usability work is complete. Phase 8A adds a Yahoo metadata bootstrap that writes generated NeedsReview candidate files without replacing production references. Phase 8A.1 improves generated sector/country map candidates so Yahoo metadata and conservative fallback values produce reviewable rows with provenance notes. Phase 8B adds a dry-run-first promotion workflow for manually Reviewed/Approved Yahoo candidate rows with backups before production CSV overwrite. The system supports configured CSV/manual data, optional Yahoo historical OHLCV loading, local reference-driven metadata/universe/mapping workflows, explicit Yahoo cache controls, opt-in research backtests from configured historical prices, missing-yfinance diagnostics, explicit runtime demo reference bootstrap mode, a Yahoo startup checklist before configured loading, an explicit Yahoo historical smoke test, production reference readiness checks, and finalized first-run documentation.
 
 ## Completed Milestones
 
@@ -20,6 +20,7 @@ The Yahoo-first transition is complete through Phase 6F. Phase 7A through 7F fir
 - Production reference readiness checks report missing files, required columns, fake/sample files, and local Yahoo ticker fields without inferring mappings or classifications.
 - First-run docs cover install/run commands, demo vs production reference mode, Yahoo historical/cache limitations, manual upload fallback, common first-run errors, and regression test expectations.
 - Yahoo metadata bootstrap writes candidate metadata, sector, country, asset-map, download-report, and promotion-review CSVs under `data/reference/generated/`; generated CSVs are local ignored artifacts and all rows require manual review.
+- Yahoo sector/country map candidates include `YahooTicker`, `IsFallbackDerived`, missing-field notes, and map-generation report status; fallback values remain review-only.
 - Reviewed Yahoo candidate promotion is available as a user-run script; it blocks NeedsReview rows, reports coverage gaps, and backs up existing production CSVs before overwrite.
 
 ## Current Constraints

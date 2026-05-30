@@ -26,13 +26,45 @@ METADATA_COLUMNS = [
     "Source",
     "VerificationStatus",
     "IsYahooDerived",
+    "IsFallbackDerived",
+    "FallbackFields",
     "MissingFields",
     "Notes",
 ]
-SECTOR_MAP_COLUMNS = ["Ticker", "Sector", "Industry", "Source", "VerificationStatus", "IsYahooDerived", "Notes"]
-COUNTRY_MAP_COLUMNS = ["Ticker", "Country", "Source", "VerificationStatus", "IsYahooDerived", "Notes"]
+SECTOR_MAP_COLUMNS = [
+    "Ticker",
+    "YahooTicker",
+    "Sector",
+    "Industry",
+    "Source",
+    "VerificationStatus",
+    "IsYahooDerived",
+    "IsFallbackDerived",
+    "MissingFields",
+    "Notes",
+]
+COUNTRY_MAP_COLUMNS = [
+    "Ticker",
+    "YahooTicker",
+    "Country",
+    "Source",
+    "VerificationStatus",
+    "IsYahooDerived",
+    "IsFallbackDerived",
+    "MissingFields",
+    "Notes",
+]
 ASSET_MAP_COLUMNS = ["Ticker", "asset_class", "group", "subgroup", "Source", "VerificationStatus", "IsYahooDerived", "Notes"]
-REPORT_COLUMNS = ["Ticker", "Status", "MissingFields", "HistoryRows", "Notes", "Error"]
+REPORT_COLUMNS = [
+    "Ticker",
+    "Status",
+    "MissingFields",
+    "HistoryRows",
+    "SectorMapStatus",
+    "CountryMapStatus",
+    "Notes",
+    "Error",
+]
 REQUIRED_REVIEW_FIELDS = ["Name", "SecurityType", "Sector", "Industry", "Country", "Exchange", "Currency"]
 
 
@@ -111,12 +143,19 @@ def bootstrap_yahoo_reference_candidates(
             )
 
     metadata = pd.DataFrame(rows, columns=METADATA_COLUMNS)
+    sector_map = build_sector_map_candidates(metadata)
+    country_map = build_country_map_candidates(metadata)
+    download_report = _annotate_download_report_with_map_status(
+        pd.DataFrame(report_rows, columns=REPORT_COLUMNS),
+        sector_map=sector_map,
+        country_map=country_map,
+    )
     return YahooBootstrapResult(
         metadata=metadata,
-        sector_map=build_sector_map_candidates(metadata),
-        country_map=build_country_map_candidates(metadata),
+        sector_map=sector_map,
+        country_map=country_map,
         asset_map=build_asset_map_candidates(metadata, hints),
-        download_report=pd.DataFrame(report_rows, columns=REPORT_COLUMNS),
+        download_report=download_report,
     )
 
 
@@ -142,7 +181,7 @@ def load_asset_hint_map(path: str | Path | None = "data/reference/asset_map_samp
 
 
 def build_sector_map_candidates(metadata: pd.DataFrame) -> pd.DataFrame:
-    """Build sector-map candidates from reviewed Yahoo metadata candidates."""
+    """Build sector-map candidates from Yahoo metadata and conservative fallbacks."""
     if metadata.empty:
         return pd.DataFrame(columns=SECTOR_MAP_COLUMNS)
     rows = []
@@ -150,36 +189,55 @@ def build_sector_map_candidates(metadata: pd.DataFrame) -> pd.DataFrame:
         sector = _clean_value(row.get("Sector"))
         industry = _clean_value(row.get("Industry"))
         if sector or industry:
+            fallback_fields = _fallback_field_set(row)
+            fallback_used = bool({"Sector", "Industry"} & fallback_fields)
             rows.append(
                 {
                     "Ticker": row["Ticker"],
+                    "YahooTicker": _clean_value(row.get("YahooTicker")) or row["Ticker"],
                     "Sector": sector,
                     "Industry": industry,
                     "Source": "Yahoo",
                     "VerificationStatus": "NeedsReview",
                     "IsYahooDerived": True,
-                    "Notes": "Candidate sector/industry from Yahoo; verify before promotion.",
+                    "IsFallbackDerived": fallback_used,
+                    "MissingFields": ", ".join(field for field, value in [("Sector", sector), ("Industry", industry)] if not value),
+                    "Notes": _map_notes(
+                        "sector/industry",
+                        fallback_used,
+                        "Candidate sector/industry from Yahoo metadata; verify before promotion.",
+                        "Candidate sector/industry includes conservative fallback values; verify before promotion.",
+                    ),
                 }
             )
     return pd.DataFrame(rows, columns=SECTOR_MAP_COLUMNS)
 
 
 def build_country_map_candidates(metadata: pd.DataFrame) -> pd.DataFrame:
-    """Build country-map candidates from reviewed Yahoo metadata candidates."""
+    """Build country-map candidates from Yahoo metadata and conservative fallbacks."""
     if metadata.empty:
         return pd.DataFrame(columns=COUNTRY_MAP_COLUMNS)
     rows = []
     for _, row in metadata.iterrows():
         country = _clean_value(row.get("Country"))
         if country:
+            fallback_used = "Country" in _fallback_field_set(row)
             rows.append(
                 {
                     "Ticker": row["Ticker"],
+                    "YahooTicker": _clean_value(row.get("YahooTicker")) or row["Ticker"],
                     "Country": country,
                     "Source": "Yahoo",
                     "VerificationStatus": "NeedsReview",
                     "IsYahooDerived": True,
-                    "Notes": "Candidate country from Yahoo; verify before promotion.",
+                    "IsFallbackDerived": fallback_used,
+                    "MissingFields": "",
+                    "Notes": _map_notes(
+                        "country",
+                        fallback_used,
+                        "Candidate country from Yahoo metadata; verify before promotion.",
+                        "Candidate country uses conservative fallback values; verify before promotion.",
+                    ),
                 }
             )
     return pd.DataFrame(rows, columns=COUNTRY_MAP_COLUMNS)
@@ -315,19 +373,32 @@ def _empty_candidate(ticker: str, notes: str = "") -> dict[str, object]:
         "Source": "Yahoo",
         "VerificationStatus": "NeedsReview",
         "IsYahooDerived": True,
+        "IsFallbackDerived": False,
+        "FallbackFields": "",
         "MissingFields": "",
         "Notes": notes,
     }
 
 
 def _apply_conservative_fallbacks(candidate: dict[str, object], ticker: str, asset_hint_map: dict[str, dict[str, str]]) -> None:
+    fallback_fields: list[str] = []
     if _is_crypto_usd_pair(ticker):
-        candidate["Country"] = candidate["Country"] or "Global"
-        candidate["Sector"] = candidate["Sector"] or "Crypto"
-        candidate["Industry"] = candidate["Industry"] or "Crypto"
-        candidate["SecurityType"] = candidate["SecurityType"] or "Crypto"
+        for field, value in [
+            ("Country", "Global"),
+            ("Sector", "Crypto"),
+            ("Industry", "Crypto"),
+            ("SecurityType", "Crypto"),
+        ]:
+            if not candidate[field]:
+                candidate[field] = value
+                fallback_fields.append(field)
     elif ticker in asset_hint_map and not candidate["Sector"]:
         candidate["Sector"] = asset_hint_map[ticker].get("asset_class", "")
+        if candidate["Sector"]:
+            fallback_fields.append("Sector")
+    if fallback_fields:
+        candidate["IsFallbackDerived"] = True
+        candidate["FallbackFields"] = ", ".join(fallback_fields)
 
 
 def _candidate_notes(ticker: str, candidate: dict[str, object], asset_hint_map: dict[str, dict[str, str]]) -> str:
@@ -335,7 +406,10 @@ def _candidate_notes(ticker: str, candidate: dict[str, object], asset_hint_map: 
     if _is_crypto_usd_pair(ticker):
         notes.append("Applied conservative crypto fallback from -USD ticker suffix.")
     if ticker in asset_hint_map:
-        notes.append("Existing asset-map hint is available for review.")
+        if "Sector" in _fallback_field_set(candidate):
+            notes.append("Applied candidate sector fallback from existing asset-map hint.")
+        else:
+            notes.append("Existing asset-map hint is available for review.")
     if candidate.get("MissingFields"):
         notes.append("Missing fields must be filled or accepted manually.")
     return " ".join(notes)
@@ -386,6 +460,43 @@ def _is_crypto_usd_pair(ticker: str) -> bool:
     return ticker.upper().endswith("-USD")
 
 
+def _fallback_field_set(row: dict[str, object] | pd.Series) -> set[str]:
+    fields = _clean_value(row.get("FallbackFields"))
+    return {field.strip() for field in fields.split(",") if field.strip()}
+
+
+def _map_notes(label: str, fallback_used: bool, yahoo_note: str, fallback_note: str) -> str:
+    if fallback_used:
+        return f"{fallback_note} Fallback {label} is not verified production data."
+    return yahoo_note
+
+
+def _annotate_download_report_with_map_status(
+    report: pd.DataFrame,
+    sector_map: pd.DataFrame,
+    country_map: pd.DataFrame,
+) -> pd.DataFrame:
+    report = report.copy()
+    report["SectorMapStatus"] = report["SectorMapStatus"].fillna("").astype("object")
+    report["CountryMapStatus"] = report["CountryMapStatus"].fillna("").astype("object")
+    sector_rows = {str(row["Ticker"]): row for _, row in sector_map.iterrows()}
+    country_rows = {str(row["Ticker"]): row for _, row in country_map.iterrows()}
+    for index, row in report.iterrows():
+        ticker = str(row["Ticker"])
+        report.at[index, "SectorMapStatus"] = _map_status_for_ticker(ticker, sector_rows, "sector/industry")
+        report.at[index, "CountryMapStatus"] = _map_status_for_ticker(ticker, country_rows, "country")
+    return report
+
+
+def _map_status_for_ticker(ticker: str, rows_by_ticker: dict[str, pd.Series], label: str) -> str:
+    row = rows_by_ticker.get(ticker)
+    if row is None:
+        return f"No {label} map row generated; Yahoo metadata and conservative fallbacks had no usable value."
+    if _matches_bool(row.get("IsFallbackDerived"), True):
+        return f"{label} map row generated from conservative fallback; manual review required."
+    return f"{label} map row generated from Yahoo metadata; manual review required."
+
+
 def _review_row(name: str, table: pd.DataFrame, note: str) -> dict[str, object]:
     needs_review = int(table["VerificationStatus"].eq("NeedsReview").sum()) if "VerificationStatus" in table.columns else 0
     return {
@@ -400,4 +511,14 @@ def _review_row(name: str, table: pd.DataFrame, note: str) -> dict[str, object]:
 def _read_csv_or_empty(path: Path, columns: list[str]) -> pd.DataFrame:
     if not path.exists():
         return pd.DataFrame(columns=columns)
-    return pd.read_csv(path)
+    table = pd.read_csv(path)
+    for column in columns:
+        if column not in table.columns:
+            table[column] = ""
+    return table.loc[:, columns]
+
+
+def _matches_bool(value: object, expected: bool) -> bool:
+    if isinstance(value, bool):
+        return value is expected
+    return str(value).strip().lower() == str(expected).lower()
