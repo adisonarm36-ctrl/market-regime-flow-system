@@ -102,3 +102,20 @@ git status --short
 git diff --stat
 git diff --name-status
 ```
+
+## Generated Yahoo Candidate Files
+
+Symptom: `git status --short --ignored data\reference\generated` shows generated CSV files with `!!`.
+
+Expected behavior: generated Yahoo candidate CSVs are ignored local artifacts. They should not be committed automatically.
+
+Tracked exception: `data/reference/generated/REVIEW_WORKSHEET.md` may be force-added when preserving a human review worksheet.
+
+Safe checks:
+
+```powershell
+git status --short
+git status --short --ignored data\reference\generated
+```
+
+Do not mark candidate rows `Reviewed` or `Approved`, modify production reference CSVs, or run `scripts/promote_yahoo_candidates.py --apply` without explicit human approval.

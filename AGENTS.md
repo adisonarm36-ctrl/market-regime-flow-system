@@ -15,6 +15,8 @@ Before coding, reviewing, committing, or pushing, read these files if present:
 
 Use `CODEX_WORKFLOW.md` for pre-flight checks, post-work checks, and Git workflow. Keep future prompts short by relying on these files instead of repeating the full workflow each session.
 
+For short-prompt task execution, also read `docs/agent/PROJECT_AGENT_RUNBOOK.md` when present. It defines the Project Orchestrator, subagents, autonomy levels, human-approval gates, production data readiness rules, and standard final response format.
+
 ## Core Objective
 
 Build a research dashboard that analyzes markets in this order:
@@ -240,6 +242,8 @@ Add pytest tests for:
 - Do not edit unrelated files.
 - Do not hardcode fake financial data except in tests.
 - Use config files for thresholds, tickers, universes, and mappings.
+- Follow `docs/agent/PROJECT_AGENT_RUNBOOK.md` for one-task-at-a-time orchestration when using short prompts.
+- Do not run `scripts/promote_yahoo_candidates.py --apply`, mark generated candidate rows `Reviewed` or `Approved`, or modify production reference CSVs without explicit human approval.
 
 ## Definition of Done
 
