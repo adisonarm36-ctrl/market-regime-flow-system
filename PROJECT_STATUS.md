@@ -18,6 +18,8 @@
 - Phase 8A completed: Yahoo metadata bootstrap workflow for generated, NeedsReview reference candidates without replacing production CSVs.
 - Phase 8A.1 completed: Yahoo sector/country map candidates now include Yahoo ticker provenance, fallback flags, missing-field notes, and review-only fallback rows where safe fields exist.
 - Phase 8B completed: dry-run-first promotion workflow for manually Reviewed/Approved Yahoo candidate rows with backup-before-overwrite behavior.
+- Momentum Dashboard UX Phases 2-7 completed and merged into `main`.
+- Project agent orchestrator workflow added for short-prompt execution through `docs/agent/PROJECT_AGENT_RUNBOOK.md`, `docs/agent/SUBAGENTS.md`, and `docs/agent/SHORT_PROMPTS.md`.
 - Current test result: 131 passed, 1 pytest cache warning on 2026-05-27 with Python 3.14.2.
 - CSV remains supported and is still the default fallback/source.
 - Yahoo historical adapter works with cache-first mode and explicit user-controlled refresh.
@@ -76,7 +78,12 @@
 - Yahoo-derived metadata candidates can help prefill review files, but every generated row still requires manual verification before production use.
 - Yahoo sector/country map candidates may include conservative fallback values such as crypto `Global`/`Crypto` or sample asset-map sector hints; these remain `NeedsReview` and are not verified production classifications.
 - Reviewed Yahoo candidates can be promoted with a user-run script, but NeedsReview rows are blocked and DR/DRx data remains user-provided.
+- `data/reference/generated/REVIEW_WORKSHEET.md` exists on branch `production-data-readiness-review` to support human review.
 
 ## Next Phase
 
-No first-run usability phase remains active. Recommended next work is production data verification and ongoing documentation/test maintenance.
+No first-run usability phase remains active.
+
+Current active area: Production Data Readiness Review.
+
+Next safe task: support human review of generated Yahoo candidate rows and user-provided DR/DRx or Thailand-specific data verification. Do not automatically promote candidates, change candidate statuses, or modify production reference CSVs.
