@@ -91,7 +91,9 @@ def test_bootstrap_yahoo_reference_candidates_marks_all_rows_needs_review():
     assert aaa["Name"] == "AAA Corp"
     assert aaa["RecentAverageVolume20D"] == "200.00"
     assert aaa["HistoricalStart"] == "2024-01-02"
-    assert aaa["MissingFields"] == ""
+    assert aaa["Universe"] == ""
+    assert aaa["Suspended"] == ""
+    assert aaa["MissingFields"] == "Universe, Suspended"
     assert bool(aaa["IsFallbackDerived"]) is False
     crypto = result.metadata[result.metadata["Ticker"].eq("BTC-USD")].iloc[0]
     assert crypto["Country"] == "Global"
@@ -100,6 +102,8 @@ def test_bootstrap_yahoo_reference_candidates_marks_all_rows_needs_review():
     assert bool(crypto["IsFallbackDerived"]) is True
     assert "Country" in crypto["FallbackFields"]
     assert "Exchange" in crypto["MissingFields"]
+    assert "Universe" in crypto["MissingFields"]
+    assert "Suspended" in crypto["MissingFields"]
     assert result.sector_map["Ticker"].tolist() == ["AAA", "BTC-USD"]
     assert result.sector_map["YahooTicker"].tolist() == ["AAA", "BTC-USD"]
     assert result.sector_map["VerificationStatus"].eq("NeedsReview").all()
@@ -164,6 +168,7 @@ def test_write_and_validate_candidate_outputs_are_local_artifacts(tmp_path):
     assert paths["metadata"].name == "yahoo_metadata_candidates.csv"
     assert Path(paths["download_report"]).exists()
     assert loaded.metadata.loc[0, "VerificationStatus"] == "NeedsReview"
+    assert {"Universe", "Suspended"}.issubset(loaded.metadata.columns)
     assert report["candidate_file"].tolist() == ["metadata", "sector_map", "country_map", "asset_map"]
     assert bool(report.loc[report["candidate_file"].eq("metadata"), "can_promote_manually"].iloc[0]) is True
 

@@ -32,7 +32,7 @@ PRODUCTION_FILES = {
     "asset_map": "asset_map.csv",
 }
 BASE_REQUIRED_COLUMNS = {
-    "metadata": [*METADATA_COLUMNS, "Universe", "Suspended"],
+    "metadata": METADATA_COLUMNS,
     "sector_map": SECTOR_MAP_COLUMNS,
     "country_map": COUNTRY_MAP_COLUMNS,
     "asset_map": ASSET_MAP_COLUMNS,

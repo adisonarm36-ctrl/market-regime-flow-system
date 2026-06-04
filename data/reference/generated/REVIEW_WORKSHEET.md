@@ -19,20 +19,20 @@ Review source: `yahoo_metadata_candidates.csv`
 
 Rows:
 
-| Ticker | Yahoo ticker | Security type | Candidate sector | Candidate industry | Candidate country | Exchange | Currency | Human verification required |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| SPY | SPY | ETF | Demo Equity | blank | blank | PCX | USD | Verify ticker identity, name, security type, exchange, currency, sector, industry, and country. Replace demo sector if promoted. |
-| QQQ | QQQ | ETF | Demo Equity | blank | blank | NGM | USD | Verify ticker identity, name, security type, exchange, currency, sector, industry, and country. Replace demo sector if promoted. |
-| IWM | IWM | ETF | Demo Equity | blank | blank | PCX | USD | Verify ticker identity, name, security type, exchange, currency, sector, industry, and country. Replace demo sector if promoted. |
-| TLT | TLT | ETF | Demo Bonds | blank | blank | NGM | USD | Verify ticker identity, name, security type, exchange, currency, sector, industry, and country. Replace demo sector if promoted. |
-| IEF | IEF | ETF | Demo Bonds | blank | blank | NGM | USD | Verify ticker identity, name, security type, exchange, currency, sector, industry, and country. Replace demo sector if promoted. |
-| SHY | SHY | ETF | Demo Bonds | blank | blank | NGM | USD | Verify ticker identity, name, security type, exchange, currency, sector, industry, and country. Replace demo sector if promoted. |
-| GLD | GLD | ETF | Demo Commodities | blank | blank | PCX | USD | Verify ticker identity, name, security type, exchange, currency, sector, industry, and country. Replace demo sector if promoted. |
-| SLV | SLV | ETF | Demo Commodities | blank | blank | PCX | USD | Verify ticker identity, name, security type, exchange, currency, sector, industry, and country. Replace demo sector if promoted. |
-| USO | USO | ETF | Demo Commodities | blank | blank | PCX | USD | Verify ticker identity, name, security type, exchange, currency, sector, industry, and country. Replace demo sector if promoted. |
-| UUP | UUP | ETF | Demo Currency | blank | blank | PCX | USD | Verify ticker identity, name, security type, exchange, currency, sector, industry, and country. Replace demo sector if promoted. |
-| BTC-USD | BTC-USD | CRYPTOCURRENCY | Crypto | Crypto | Global | CCC | USD | Verify ticker identity, crypto classification, sector, industry, country/global classification, exchange, and currency. |
-| ETH-USD | ETH-USD | CRYPTOCURRENCY | Crypto | Crypto | Global | CCC | USD | Verify ticker identity, crypto classification, sector, industry, country/global classification, exchange, and currency. |
+| Ticker | Yahoo ticker | Security type | Candidate sector | Candidate industry | Candidate country | Exchange | Currency | Candidate universe | Candidate suspended | Human verification required |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| SPY | SPY | ETF | Demo Equity | blank | blank | PCX | USD | blank | blank | Verify ticker identity, name, security type, exchange, currency, sector, industry, country, universe, and suspended status. Replace demo sector if promoted. |
+| QQQ | QQQ | ETF | Demo Equity | blank | blank | NGM | USD | blank | blank | Verify ticker identity, name, security type, exchange, currency, sector, industry, country, universe, and suspended status. Replace demo sector if promoted. |
+| IWM | IWM | ETF | Demo Equity | blank | blank | PCX | USD | blank | blank | Verify ticker identity, name, security type, exchange, currency, sector, industry, country, universe, and suspended status. Replace demo sector if promoted. |
+| TLT | TLT | ETF | Demo Bonds | blank | blank | NGM | USD | blank | blank | Verify ticker identity, name, security type, exchange, currency, sector, industry, country, universe, and suspended status. Replace demo sector if promoted. |
+| IEF | IEF | ETF | Demo Bonds | blank | blank | NGM | USD | blank | blank | Verify ticker identity, name, security type, exchange, currency, sector, industry, country, universe, and suspended status. Replace demo sector if promoted. |
+| SHY | SHY | ETF | Demo Bonds | blank | blank | NGM | USD | blank | blank | Verify ticker identity, name, security type, exchange, currency, sector, industry, country, universe, and suspended status. Replace demo sector if promoted. |
+| GLD | GLD | ETF | Demo Commodities | blank | blank | PCX | USD | blank | blank | Verify ticker identity, name, security type, exchange, currency, sector, industry, country, universe, and suspended status. Replace demo sector if promoted. |
+| SLV | SLV | ETF | Demo Commodities | blank | blank | PCX | USD | blank | blank | Verify ticker identity, name, security type, exchange, currency, sector, industry, country, universe, and suspended status. Replace demo sector if promoted. |
+| USO | USO | ETF | Demo Commodities | blank | blank | PCX | USD | blank | blank | Verify ticker identity, name, security type, exchange, currency, sector, industry, country, universe, and suspended status. Replace demo sector if promoted. |
+| UUP | UUP | ETF | Demo Currency | blank | blank | PCX | USD | blank | blank | Verify ticker identity, name, security type, exchange, currency, sector, industry, country, universe, and suspended status. Replace demo sector if promoted. |
+| BTC-USD | BTC-USD | CRYPTOCURRENCY | Crypto | Crypto | Global | CCC | USD | blank | blank | Verify ticker identity, crypto classification, sector, industry, country/global classification, exchange, currency, universe, and suspended status. |
+| ETH-USD | ETH-USD | CRYPTOCURRENCY | Crypto | Crypto | Global | CCC | USD | blank | blank | Verify ticker identity, crypto classification, sector, industry, country/global classification, exchange, currency, universe, and suspended status. |
 
 Fields requiring human verification:
 
@@ -45,6 +45,8 @@ Fields requiring human verification:
 - `Country`
 - `Exchange`
 - `Currency`
+- `Universe`
+- `Suspended`
 - `MarketCap`, if used
 - `RecentAverageVolume20D`, if used for production quality checks
 - Any value marked fallback-derived or demo-derived

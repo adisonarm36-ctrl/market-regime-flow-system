@@ -19,6 +19,8 @@ METADATA_COLUMNS = [
     "Country",
     "Exchange",
     "Currency",
+    "Universe",
+    "Suspended",
     "MarketCap",
     "HistoricalStart",
     "HistoricalEnd",
@@ -65,7 +67,17 @@ REPORT_COLUMNS = [
     "Notes",
     "Error",
 ]
-REQUIRED_REVIEW_FIELDS = ["Name", "SecurityType", "Sector", "Industry", "Country", "Exchange", "Currency"]
+REQUIRED_REVIEW_FIELDS = [
+    "Name",
+    "SecurityType",
+    "Sector",
+    "Industry",
+    "Country",
+    "Exchange",
+    "Currency",
+    "Universe",
+    "Suspended",
+]
 
 
 @dataclass(frozen=True)
@@ -366,6 +378,8 @@ def _empty_candidate(ticker: str, notes: str = "") -> dict[str, object]:
         "Country": "",
         "Exchange": "",
         "Currency": "",
+        "Universe": "",
+        "Suspended": "",
         "MarketCap": "",
         "HistoricalStart": "",
         "HistoricalEnd": "",
